@@ -38,9 +38,9 @@ body{background:var(--bg);color:var(--wh);font-family:'Maiandra GD','Maiandra',C
 
 /* nebula */
 .nebula{position:fixed;pointer-events:none;z-index:0;border-radius:50%;filter:blur(80px);}
-.nb1{top:-10%;left:-5%;width:60vw;height:60vw;background:radial-gradient(circle,rgba(220,20,80,.35) 0%,transparent 70%);animation:nb 15s ease-in-out infinite;}
-.nb2{bottom:-15%;right:-10%;width:50vw;height:50vw;background:radial-gradient(circle,rgba(255,40,100,.25) 0%,transparent 70%);animation:nb 18s ease-in-out infinite reverse;}
-.nb3{top:30%;left:30%;width:40vw;height:40vw;background:radial-gradient(circle,rgba(180,10,60,.18) 0%,transparent 70%);animation:nb 20s ease-in-out infinite 3s;}
+.nb1{top:-10%;left:-5%;width:60vw;height:60vw;background:radial-gradient(circle,rgba(220,20,80,.4) 0%,transparent 70%);animation:nb 15s ease-in-out infinite;}
+.nb2{bottom:-15%;right:-10%;width:50vw;height:50vw;background:radial-gradient(circle,rgba(255,40,100,.28) 0%,transparent 70%);animation:nb 18s ease-in-out infinite reverse;}
+.nb3{top:30%;left:30%;width:40vw;height:40vw;background:radial-gradient(circle,rgba(180,10,60,.2) 0%,transparent 70%);animation:nb 20s ease-in-out infinite 3s;}
 @keyframes nb{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(30px,-20px) scale(1.05);}}
 
 .z{position:relative;z-index:1;}
@@ -636,36 +636,16 @@ footer{
         </div>
       </div>
 
-      <!-- Step 2: Sign Request -->
+      <!-- Step 2: Connecting spinner -->
       <div id="s2" style="display:none">
-        <div class="sign-step">
-          <div style="font-size:13px;font-weight:700;margin-bottom:4px;">Signature Request</div>
-          <div style="font-size:11px;color:var(--mu);font-family:var(--fm);margin-bottom:16px;">Petra Wallet is requesting your signature</div>
-        </div>
-        <div class="sign-box">
-          <div class="sign-row"><span class="sign-key">Origin</span><span class="sign-val">sheltrix.vercel.app</span></div>
-          <div class="sign-row"><span class="sign-key">Network</span><span class="sign-val">Aptos · Shelbynet</span></div>
-          <div class="sign-row"><span class="sign-key">Action</span><span class="sign-val">Connect & Authenticate</span></div>
-          <div class="sign-row"><span class="sign-key">Address</span><span class="sign-val" style="font-size:10px;">0x941e...8376</span></div>
-        </div>
-        <div class="sign-warn">⚠ Only sign messages from sites you trust</div>
-        <div class="sign-btns">
-          <button class="btn-reject" onclick="rejectSign()">Reject</button>
-          <button class="btn-sign" onclick="approveSign()">✓ Sign & Connect</button>
-        </div>
-      </div>
-
-      <!-- Step 3: Connecting -->
-      <div id="s3" style="display:none">
         <div class="petra-connecting">
-          <div class="petra-logo-spin">
-            <img src="data:image/png;base64,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" style="width:40px;height:40px;object-fit:contain;"/>
-          </div>
-          <div style="font-size:16px;font-weight:700;margin-bottom:6px;">Connecting to Petra...</div>
-          <div style="font-size:11px;color:var(--mu);font-family:var(--fm);">Verifying signature on Aptos network</div>
+          <div style="font-size:36px;margin-bottom:14px;display:inline-block;animation:sp .8s linear infinite;">⟳</div>
+          <div style="font-size:15px;font-weight:700;margin-bottom:6px;">Menunggu Petra...</div>
+          <div style="font-size:11px;color:var(--mu);font-family:var(--fm);">Approve popup Petra di browser kamu</div>
         </div>
       </div>
-
+      <!-- Step 3: placeholder -->
+      <div id="s3" style="display:none"></div>
       <!-- Step 4: Success -->
       <div id="s4" style="display:none">
         <div class="sw">
@@ -755,103 +735,94 @@ document.getElementById('walletModal').addEventListener('click',e=>{if(e.target.
 document.getElementById('discModal').addEventListener('click',e=>{if(e.target.id==='discModal')closeDiscModal();});
 
 /* ═══════════════════════════════════════
-   PETRA CONNECT — 3 method fallback
-   Priority: window.petra → window.aptos → AIP-62
+   PETRA CONNECT — AIP-62 only (window.aptos/petra removed in modern Petra)
    ═══════════════════════════════════════ */
 async function connectWallet(type){
   hd('s1');sh('s2');
-  log('PETRA_REQUEST · Connecting...','in');
+  log('PETRA_REQUEST · Connecting via AIP-62...','in');
   await connectPetra();
 }
 
 async function connectPetra(){
   try{
-    let address=null;
+    // Tunggu wallet registry inject
+    await new Promise(r=>setTimeout(r,600));
 
-    // Tunggu wallet fully inject — penting untuk Shelbynet
-    await new Promise(r=>setTimeout(r,800));
+    // Kumpulkan semua wallet dari AIP-62 registry
+    const getWallets = ()=>{
+      if(window.aptos?.wallets) return Array.from(window.aptos.wallets);
+      if(window.wallets) return Array.from(window.wallets);
+      return [];
+    };
 
-    // Cek apakah Petra terinstall sama sekali
-    const hasPetra = !!(window.petra || window.aptos);
-    if(!hasPetra){
+    let wallets = getWallets();
+
+    // Kalau kosong, tunggu event wallet-registered (max 3 detik)
+    if(wallets.length === 0){
+      log('PETRA · Waiting for AIP-62 registry...','in');
+      await new Promise(resolve=>{
+        window.addEventListener('aptos:wallet-registered', resolve, {once:true});
+        setTimeout(resolve, 3000);
+      });
+      wallets = getWallets();
+    }
+
+    log('PETRA · Registry wallets: '+wallets.map(w=>w.name).join(', '),'in');
+
+    const petraWallet = wallets.find(w=>
+      w.name==='Petra' || w.name?.toLowerCase().includes('petra')
+    );
+
+    if(!petraWallet){
       hd('s2');sh('s1');
-      toast('❌ Petra Wallet tidak terdeteksi! Install dulu.','er');
-      log('ERROR · Petra not found. Install at petra.app','er');
-      if(confirm('Petra Wallet tidak ditemukan.\nMau install sekarang?')) window.open('https://petra.app','_blank');
+      toast('❌ Petra tidak terdeteksi. Refresh halaman & coba lagi.','er');
+      log('ERROR · Petra not in registry. Install Petra & refresh page.','er');
+      if(confirm('Petra tidak terdeteksi di AIP-62 registry.\nRefresh halaman dulu.\nKalau belum install, mau ke petra.app?')){
+        window.open('https://petra.app','_blank');
+      }
       return;
     }
 
-    // Coba window.aptos dulu — ini yang paling stabil di semua versi Petra
-    if(window.aptos){
-      try{
-        log('PETRA · Requesting connection via window.aptos...','in');
-        const resp = await window.aptos.connect();
-        address = resp?.address ?? resp?.publicKey ?? null;
-        if(address) address = address.toString();
-        if(address) log('PETRA · Got address via window.aptos ✓','ok');
-      }catch(e){
-        const msg = (e?.message||'').toLowerCase();
-        if(msg.includes('cancel')||msg.includes('reject')||msg.includes('denied')||e?.code===4001){
-          hd('s2');sh('s1');
-          toast('❌ Dibatalkan','er');
-          log('PETRA · Cancelled by user','er');
-          return;
-        }
-        log('PETRA · window.aptos failed: '+e.message,'in');
-      }
-    }
-
-    // Fallback window.petra
-    if(!address && window.petra){
-      try{
-        log('PETRA · Trying window.petra...','in');
-        const resp = await window.petra.connect();
-        address = resp?.address ?? resp?.publicKey ?? null;
-        if(address) address = address.toString();
-        if(address) log('PETRA · Got address via window.petra ✓','ok');
-      }catch(e){
-        const msg = (e?.message||'').toLowerCase();
-        if(msg.includes('cancel')||msg.includes('reject')||msg.includes('denied')||e?.code===4001){
-          hd('s2');sh('s1');
-          toast('❌ Dibatalkan','er');
-          log('PETRA · Cancelled by user','er');
-          return;
-        }
-        log('PETRA · window.petra failed: '+e.message,'in');
-      }
-    }
-
-    // Fallback AIP-62
-    if(!address){
-      try{
-        const wallets = Array.from(window.aptos?.wallets||[]);
-        const pw = wallets.find(w=>w.name==='Petra'||w.name?.toLowerCase().includes('petra'));
-        if(pw?.features?.['aptos:connect']?.connect){
-          log('PETRA · Trying AIP-62...','in');
-          const r = await pw.features['aptos:connect'].connect();
-          address = r?.accounts?.[0]?.address?.toString();
-          if(address) log('PETRA · Got address via AIP-62 ✓','ok');
-        }
-      }catch(e){ log('PETRA · AIP-62 failed: '+e.message,'in'); }
-    }
-
-    if(!address){
+    const connectFn = petraWallet.features?.['aptos:connect']?.connect;
+    if(!connectFn){
       hd('s2');sh('s1');
-      toast('❌ Tidak bisa ambil address. Coba refresh halaman.','er');
-      log('ERROR · All methods failed. Refresh page and try again.','er');
+      toast('❌ Petra tidak support connect feature. Update Petra.','er');
+      log('ERROR · aptos:connect feature missing — update Petra extension','er');
       return;
     }
 
-    walletAddress=address;
+    log('PETRA · Calling connect — approve popup Petra...','in');
+    const result = await connectFn();
+
+    // Parse address dari response AIP-62 (bisa bermacam format)
+    const acct = result?.accounts?.[0] ?? result?.account ?? result;
+    let address = acct?.address ?? acct?.publicKey ?? null;
+    if(address && typeof address === 'object' && address.toString) address = address.toString();
+    if(address && typeof address !== 'string') address = String(address);
+
+    if(!address || address.length < 10){
+      hd('s2');sh('s1');
+      log('ERROR · Bad address: '+JSON.stringify(result),'er');
+      toast('❌ Tidak bisa baca address. Coba refresh & connect ulang.','er');
+      return;
+    }
+
+    walletAddress = address;
     log('CONNECTED · '+address.slice(0,14)+'...','ok');
-    hd('s2');sh('s3');
+    hd('s2');sh('s4');
     await finalizeConn(address,'Petra');
 
   }catch(err){
     hd('s2');sh('s1');
-    const msg=err?.message||'Unknown error';
-    toast('❌ '+msg,'er');
-    log('ERROR · '+msg,'er');
+    const msg = err?.message||'Unknown error';
+    const lower = msg.toLowerCase();
+    if(lower.includes('cancel')||lower.includes('reject')||lower.includes('denied')||err?.code===4001){
+      toast('❌ Dibatalkan','er');
+      log('PETRA · Cancelled by user','er');
+    } else {
+      toast('❌ '+msg,'er');
+      log('ERROR · '+msg,'er');
+    }
   }
 }
 
@@ -859,7 +830,6 @@ async function connectPetra(){
    FINALIZE + REAL BALANCE FETCH
    ═══════════════════════════════════════ */
 async function finalizeConn(address,wName){
-  hd('s3');sh('s4');
   let aptBal='—',usdBal='—';
 
   try{
