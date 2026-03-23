@@ -160,79 +160,69 @@ async function onWalletConnected(address) {
     const res = await fetch(`${SHELBY_CONFIG.aptosFullnode}/accounts/${address}/resources`);
     if (res.ok) {
       const data = await res.json();
-      log('DEBUG · ' + data.length + ' resources found', 'in');
+      log('DEBUG · Total resources: ' + data.length, 'in');
 
-      // Log semua resource types untuk debug
-      data.forEach(r => {
-        if (r.type?.toLowerCase().includes('coin') ||
-            r.type?.toLowerCase().includes('fungible') ||
-            r.type?.toLowerCase().includes('shelby') ||
-            r.type?.toLowerCase().includes('apt')) {
-          log('DEBUG · type: ' + r.type, 'in');
-        }
-      });
+      // Log SEMUA resource types untuk debug
+      data.forEach(r => log('RES · ' + r.type, 'in'));
 
-      // ── APT Balance — coba semua kemungkinan format ──
+      // ── APT: coba semua format yang mungkin ──
+      let aptFound = false;
 
-      // Format 1: CoinStore lama (paling umum di Shelbynet)
-      const coinAPT = data.find(r =>
-        r.type === '0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>'
-      );
-      // Format 2: Fungible Asset store baru
-      const faAPT = data.find(r =>
-        r.type?.includes('FungibleStore') && r.type?.includes('AptosCoin')
-      );
-      // Format 3: Generic FungibleStore (cek semua, ambil yang balance > 0)
-      const anyFA = data.find(r =>
-        r.type?.includes('0x1::fungible_asset::FungibleStore') &&
-        r.data?.balance && parseInt(r.data.balance) > 0
-      );
-
-      if (coinAPT?.data?.coin?.value != null) {
-        const raw = parseInt(coinAPT.data.coin.value);
-        aptBal = (raw / 1e8).toFixed(4);
-        log('APT · ' + aptBal + ' via CoinStore', 'ok');
-      } else if (faAPT?.data?.balance != null) {
-        aptBal = (parseInt(faAPT.data.balance) / 1e8).toFixed(4);
-        log('APT · ' + aptBal + ' via FA+AptosCoin', 'ok');
-      } else if (anyFA?.data?.balance != null) {
-        aptBal = (parseInt(anyFA.data.balance) / 1e8).toFixed(4);
-        log('APT · ' + aptBal + ' via FungibleStore', 'ok');
-      } else {
-        // Coba endpoint balance langsung
-        try {
-          const balRes = await fetch(`${SHELBY_CONFIG.aptosFullnode}/accounts/${address}/resource/0x1::coin::CoinStore%3C0x1%3A%3Aaptos_coin%3A%3AAptosCoin%3E`);
-          if (balRes.ok) {
-            const balData = await balRes.json();
-            if (balData?.data?.coin?.value) {
-              aptBal = (parseInt(balData.data.coin.value) / 1e8).toFixed(4);
-              log('APT · ' + aptBal + ' via direct endpoint', 'ok');
-            }
-          }
-        } catch (_) {}
-        if (aptBal === '0.0000') log('APT · 0 atau tidak ditemukan di resources', 'in');
+      // 1. CoinStore lama
+      const coin = data.find(r => r.type === '0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>');
+      if (coin?.data?.coin?.value != null) {
+        aptBal = (parseInt(coin.data.coin.value) / 1e8).toFixed(4);
+        log('APT · ' + aptBal + ' (CoinStore)', 'ok'); aptFound = true;
       }
 
-      // ── ShelbyUSD Balance ──
-      const usdStore = data.find(r =>
-        r.type?.includes('1b18363a9f1fe5e6ebf247daba5cc1c18052bb232efdc4c50f556053922d98e1') ||
-        r.type?.toLowerCase().includes('shelbyusd') ||
-        r.type?.toLowerCase().includes('shelby_usd') ||
-        r.type?.toLowerCase().includes('shelby_token')
+      // 2. Semua FungibleStore yang ada (ambil yang paling besar nilainya)
+      if (!aptFound) {
+        const faStores = data.filter(r => r.type?.includes('fungible_asset') || r.type?.includes('FungibleStore'));
+        let maxBal = 0;
+        faStores.forEach(r => {
+          const v = parseInt(r.data?.balance || '0');
+          if (v > maxBal) { maxBal = v; }
+        });
+        if (maxBal > 0) {
+          aptBal = (maxBal / 1e8).toFixed(4);
+          log('APT · ' + aptBal + ' (FungibleStore max)', 'ok'); aptFound = true;
+        }
+      }
+
+      // 3. Coba endpoint account langsung
+      if (!aptFound) {
+        try {
+          const acctRes = await fetch(`${SHELBY_CONFIG.aptosFullnode}/accounts/${address}`);
+          if (acctRes.ok) {
+            const acct = await acctRes.json();
+            log('DEBUG · account data: ' + JSON.stringify(acct), 'in');
+          }
+        } catch(_) {}
+      }
+
+      if (!aptFound) log('APT · Not found in any resource — check log for types', 'in');
+
+      // ── ShelbyUSD: cari semua kemungkinan ──
+      const usdCandidates = data.filter(r =>
+        r.type?.toLowerCase().includes('shelby') ||
+        r.type?.includes('1b18363a') ||
+        r.type?.toLowerCase().includes('usd')
       );
-      if (usdStore?.data?.balance != null) {
-        usdBal = (parseInt(usdStore.data.balance) / 1e6).toFixed(2);
-        log('ShelbyUSD · ' + usdBal, 'ok');
-      } else if (usdStore?.data?.coin?.value != null) {
-        usdBal = (parseInt(usdStore.data.coin.value) / 1e6).toFixed(2);
-        log('ShelbyUSD · ' + usdBal + ' via coin.value', 'ok');
-      } else {
-        log('ShelbyUSD · tidak ditemukan di resources', 'in');
+      log('ShelbyUSD candidates: ' + usdCandidates.length, 'in');
+      usdCandidates.forEach(r => log('USD_TYPE · ' + r.type + ' | bal=' + (r.data?.balance || r.data?.coin?.value || '?'), 'in'));
+
+      if (usdCandidates.length > 0) {
+        const usd = usdCandidates[0];
+        const v = usd.data?.balance ?? usd.data?.coin?.value ?? null;
+        if (v != null) {
+          usdBal = (parseInt(v) / 1e6).toFixed(2);
+          log('ShelbyUSD · ' + usdBal, 'ok');
+        }
       }
     } else {
-      log('BALANCE · RPC error ' + res.status, 'in');
+      log('BALANCE · RPC ' + res.status + ' — ' + await res.text().catch(()=>''), 'in');
     }
-  } catch (e) { log('BALANCE · ' + e.message, 'in'); }
+  } catch (e) { log('BALANCE · Error: ' + e.message, 'in'); }
 
   document.getElementById('sadr').textContent = address.slice(0, 10) + '...' + address.slice(-8);
   document.getElementById('aptBalDisp').textContent = aptBal + ' APT';
