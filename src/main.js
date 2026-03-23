@@ -157,81 +157,99 @@ async function onWalletConnected(address) {
 
   let aptBal = '0.0000', usdBal = '0.00';
   try {
-    // Shelbynet kadang return empty resources array via /resources
-    // Gunakan endpoint spesifik langsung per resource type
+    log('BALANCE · Fetching from Petra wallet directly...', 'in');
 
-    // ── APT via CoinStore (encode URL manual) ──
-    const aptUrl = `${SHELBY_CONFIG.aptosFullnode}/accounts/${address}/resource/0x1%3A%3Acoin%3A%3ACoinStore%3C0x1%3A%3Aaptos_coin%3A%3AAptosCoin%3E`;
-    log('BALANCE · Fetching APT...', 'in');
-    const aptRes = await fetch(aptUrl);
-    log('BALANCE · APT status: ' + aptRes.status, 'in');
-    if (aptRes.ok) {
-      const aptData = await aptRes.json();
-      log('BALANCE · APT raw: ' + JSON.stringify(aptData?.data), 'in');
-      const val = aptData?.data?.coin?.value;
-      if (val != null) {
-        aptBal = (parseInt(val) / 1e8).toFixed(4);
-        log('APT · ' + aptBal, 'ok');
-      }
-    } else {
-      // Coba format alternatif dengan tanda kurung unencoded
-      const aptUrl2 = `${SHELBY_CONFIG.aptosFullnode}/accounts/${address}/resource/0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>`;
-      const aptRes2 = await fetch(aptUrl2);
-      if (aptRes2.ok) {
-        const d = await aptRes2.json();
-        const val = d?.data?.coin?.value;
-        if (val != null) { aptBal = (parseInt(val) / 1e8).toFixed(4); log('APT · ' + aptBal + ' (v2)', 'ok'); }
-      }
-    }
+    // ── Cara paling reliable: ambil langsung dari Petra wallet object ──
+    // Petra inject balance info ke dalam account object
 
-    // ── ShelbyUSD via CoinStore ──
-    const SHELBYUSD_ADDR = '0x1b18363a9f1fe5e6ebf247daba5cc1c18052bb232efdc4c50f556053922d98e1';
-    // Coba beberapa format type ShelbyUSD
-    const usdTypes = [
-      `0x1::coin::CoinStore<${SHELBYUSD_ADDR}::shelby_usd::ShelbyUSD>`,
-      `0x1::coin::CoinStore<${SHELBYUSD_ADDR}::shelbyusd::ShelbyUSD>`,
-      `0x1::coin::CoinStore<${SHELBYUSD_ADDR}::shelby::ShelbyUSD>`,
-      `0x1::coin::CoinStore<${SHELBYUSD_ADDR}::coin::ShelbyUSD>`,
-    ];
-    log('BALANCE · Fetching ShelbyUSD...', 'in');
-    for (const usdType of usdTypes) {
+    // Method 1: window.aptos.getAccount() - return full account dengan balance
+    if (window.aptos?.getAccount) {
       try {
-        const usdRes = await fetch(`${SHELBY_CONFIG.aptosFullnode}/accounts/${address}/resource/${encodeURIComponent(usdType)}`);
-        log('BALANCE · USD try: ' + usdType.slice(0,60) + '... → ' + usdRes.status, 'in');
-        if (usdRes.ok) {
-          const d = await usdRes.json();
-          const val = d?.data?.coin?.value ?? d?.data?.balance;
-          if (val != null) {
-            usdBal = (parseInt(val) / 1e6).toFixed(2);
-            log('ShelbyUSD · ' + usdBal + ' ✓ type: ' + usdType, 'ok');
-            break;
-          }
-        }
-      } catch (_) {}
+        const acct = await window.aptos.getAccount();
+        log('PETRA_ACCOUNT · ' + JSON.stringify(acct), 'in');
+      } catch(e) { log('getAccount err: ' + e.message, 'in'); }
     }
 
-    // ── Fallback: scan semua resources lagi, log semua ──
-    if (aptBal === '0.0000' || usdBal === '0.00') {
-      const allRes = await fetch(`${SHELBY_CONFIG.aptosFullnode}/accounts/${address}/resources?limit=9999`);
-      if (allRes.ok) {
-        const all = await allRes.json();
-        log('DEBUG · resources with limit=9999: ' + all.length, 'in');
-        all.forEach(r => log('RES · ' + r.type + ' | ' + JSON.stringify(r.data).slice(0,60), 'in'));
-        // Coba baca APT dari sini
-        if (aptBal === '0.0000') {
-          const c = all.find(r => r.type?.includes('CoinStore') && r.type?.includes('AptosCoin'));
-          if (c?.data?.coin?.value) { aptBal = (parseInt(c.data.coin.value) / 1e8).toFixed(4); log('APT · ' + aptBal + ' (fallback)', 'ok'); }
+    // Method 2: window.aptos.getBalance() - beberapa versi Petra support ini
+    if (window.aptos?.getBalance) {
+      try {
+        const bal = await window.aptos.getBalance();
+        log('PETRA_BALANCE · ' + JSON.stringify(bal), 'in');
+        if (bal?.amount != null) {
+          aptBal = (parseInt(bal.amount) / 1e8).toFixed(4);
+          log('APT · ' + aptBal + ' via getBalance()', 'ok');
         }
-        if (usdBal === '0.00') {
-          const u = all.find(r => r.type?.includes('1b18363a') || r.type?.toLowerCase().includes('shelby'));
-          if (u) {
-            const v = u.data?.coin?.value ?? u.data?.balance;
-            if (v) { usdBal = (parseInt(v) / 1e6).toFixed(2); log('ShelbyUSD · ' + usdBal + ' (fallback)', 'ok'); }
-          }
-        }
-      }
+      } catch(e) { log('getBalance err: ' + e.message, 'in'); }
     }
-  } catch (e) { log('BALANCE · Error: ' + e.message, 'in'); }
+
+    // Method 3: Shelbynet GraphQL API (jika tersedia)
+    try {
+      const gqlRes = await fetch('https://api.shelbynet.shelby.xyz/graphql', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: `query GetBalance($addr: String!) {
+            account_balances(where: {address: {_eq: $addr}}) {
+              amount asset_type
+            }
+          }`,
+          variables: { addr: address }
+        })
+      });
+      if (gqlRes.ok) {
+        const gql = await gqlRes.json();
+        log('GQL · ' + JSON.stringify(gql?.data), 'in');
+      }
+    } catch(e) { log('GraphQL err: ' + e.message, 'in'); }
+
+    // Method 4: Shelbynet indexer API
+    try {
+      const idxRes = await fetch(`https://indexer.shelbynet.shelby.xyz/v1/graphql`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: `{ current_coin_balances(where: {owner_address: {_eq: "${address}"}}) { amount coin_type } }`
+        })
+      });
+      if (idxRes.ok) {
+        const idx = await idxRes.json();
+        log('IDX · ' + JSON.stringify(idx?.data), 'in');
+        const balances = idx?.data?.current_coin_balances || [];
+        balances.forEach(b => {
+          log('COIN · ' + b.coin_type + ' = ' + b.amount, 'in');
+          if (b.coin_type?.includes('AptosCoin')) {
+            aptBal = (parseInt(b.amount) / 1e8).toFixed(4);
+            log('APT · ' + aptBal, 'ok');
+          }
+          if (b.coin_type?.toLowerCase().includes('shelby') || b.coin_type?.includes('1b18363a')) {
+            usdBal = (parseInt(b.amount) / 1e6).toFixed(2);
+            log('ShelbyUSD · ' + usdBal, 'ok');
+          }
+        });
+      }
+    } catch(e) { log('Indexer err: ' + e.message, 'in'); }
+
+    // Method 5: Coba RPC dengan path yang berbeda
+    try {
+      // Shelbynet mungkin pakai /v1/accounts/{addr}/coins (Aptos v2 API)
+      const coinsRes = await fetch(`${SHELBY_CONFIG.aptosFullnode}/accounts/${address}/coins`);
+      log('COINS endpoint status: ' + coinsRes.status, 'in');
+      if (coinsRes.ok) {
+        const coins = await coinsRes.json();
+        log('COINS · ' + JSON.stringify(coins).slice(0, 200), 'in');
+        (Array.isArray(coins) ? coins : coins?.data || []).forEach(c => {
+          log('COIN · ' + (c.coin_type || c.type) + ' = ' + (c.amount || c.value), 'in');
+          if ((c.coin_type || c.type)?.includes('AptosCoin')) {
+            aptBal = (parseInt(c.amount || c.value) / 1e8).toFixed(4);
+          }
+          if ((c.coin_type || c.type)?.toLowerCase().includes('shelby')) {
+            usdBal = (parseInt(c.amount || c.value) / 1e6).toFixed(2);
+          }
+        });
+      }
+    } catch(e) { log('coins endpoint err: ' + e.message, 'in'); }
+
+  } catch (e) { log('BALANCE · Fatal: ' + e.message, 'in'); }
 
   document.getElementById('sadr').textContent = address.slice(0, 10) + '...' + address.slice(-8);
   document.getElementById('aptBalDisp').textContent = aptBal + ' APT';
