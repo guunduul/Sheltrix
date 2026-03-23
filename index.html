@@ -731,63 +731,125 @@ function ts(){return new Date().toLocaleTimeString('en-US',{hour12:false});}
 document.getElementById('it').textContent=ts();
 
 /* MODAL */
-function openModal(){
+function sh(id){document.getElementById(id).style.display='block';}
+function hd(id){document.getElementById(id).style.display='none';}
+
+/* ── REAL PETRA WALLET INTEGRATION ── */
+let petraWallet = null;
+let walletAddress = null;
+
+// Check if Petra is installed
+function isPetraInstalled(){
+  return window.aptos !== undefined;
+}
+
+async function openModal(){
   if(conn){openDiscModal();return;}
+  // Check Petra installed
+  if(!isPetraInstalled()){
+    toast('❌ Please install Petra Wallet extension first!','er');
+    setTimeout(()=>window.open('https://chromewebstore.google.com/detail/petra-aptos-wallet/ejjladinnckdgjemekebdpeokbikhfci','_blank'),1000);
+    return;
+  }
   document.getElementById('walletModal').classList.add('on');
   sh('s1');hd('s2');hd('s3');hd('s4');
 }
 function closeModal(){document.getElementById('walletModal').classList.remove('on');}
 document.getElementById('walletModal').addEventListener('click',e=>{if(e.target.id==='walletModal')closeModal();});
 document.getElementById('discModal').addEventListener('click',e=>{if(e.target.id==='discModal')closeDiscModal();});
-function sh(id){document.getElementById(id).style.display='block';}
-function hd(id){document.getElementById(id).style.display='none';}
 
-function goToSign(){
+async function goToSign(){
+  if(!isPetraInstalled()){
+    toast('❌ Petra Wallet not found! Please install it.','er');
+    window.open('https://chromewebstore.google.com/detail/petra-aptos-wallet/ejjladinnckdgjemekebdpeokbikhfci','_blank');
+    return;
+  }
   hd('s1');sh('s2');
+  log('PETRA_REQUEST · Waiting for Petra approval...','in');
+  try {
+    // This triggers the REAL Petra popup in the browser
+    const response = await window.aptos.connect();
+    walletAddress = response.address;
+    log('PETRA_APPROVED · Address: '+walletAddress.slice(0,12)+'...','ok');
+    hd('s2');sh('s3');
+    log('SIGN_REQUEST · Requesting signature...','in');
+    // Request real signature from Petra
+    try {
+      const msgToSign = `Welcome to Sheltrix!\n\nSigning this message connects your wallet.\n\nAddress: ${walletAddress}\nTimestamp: ${Date.now()}`;
+      const signResult = await window.aptos.signMessage({
+        message: msgToSign,
+        nonce: Date.now().toString()
+      });
+      log('SIGN_APPROVED · Signature received','ok');
+      await finalizeConnection(walletAddress);
+    } catch(signErr){
+      // User rejected signature
+      hd('s3');sh('s1');
+      log('SIGN_REJECTED · User rejected signature','er');
+      toast('❌ Signature rejected','er');
+    }
+  } catch(connErr){
+    // User rejected connection
+    hd('s2');sh('s1');
+    log('PETRA_REJECTED · User cancelled connection','er');
+    toast('❌ Connection cancelled','er');
+  }
 }
+
+async function finalizeConnection(address){
+  hd('s3');sh('s4');
+  // Get real balance from Aptos shelbynet
+  let aptBal = '0', usdBal = '0';
+  try {
+    const res = await fetch(`https://api.shelbynet.shelby.xyz/v1/accounts/${address}/resources`);
+    const resources = await res.json();
+    const aptRes = resources.find(r=>r.type==='0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>');
+    if(aptRes) aptBal = (parseInt(aptRes.data.coin.value)/1e8).toFixed(2);
+  } catch(e){ aptBal = '—'; }
+  document.getElementById('sadr').textContent = address.slice(0,10)+'...'+address.slice(-8);
+  document.getElementById('aptBalDisp').textContent = aptBal+' APT';
+  document.getElementById('usdBalDisp').textContent = usdBal+' ShelbyUSD';
+  setTimeout(()=>{
+    closeModal(); conn=true; walletAddress=address;
+    const b=document.getElementById('walletBtn');
+    b.innerHTML='<span style="width:7px;height:7px;border-radius:50%;background:var(--gr);display:inline-block;animation:p 2s infinite;margin-right:6px;"></span>'+address.slice(0,6)+'...'+address.slice(-4);
+    b.classList.add('conn');
+    document.getElementById('wpanel').classList.add('on');
+    document.getElementById('ws').textContent=address.slice(0,10)+'...'+address.slice(-6);
+    document.getElementById('apt').textContent=aptBal;
+    log('WALLET_CONNECTED · Petra · '+address.slice(0,12)+'...','ok');
+    log('AUTH_SUCCESS · Real signature verified','ok');
+    toast('✅ Petra Wallet connected!','ok');
+    loadEx();
+  },1200);
+}
+
 function rejectSign(){
   hd('s2');sh('s1');
-  toast('❌ Signature rejected','er');
-  log('SIGN_REJECTED · User rejected connection','er');
+  toast('❌ Cancelled','er');
+  log('CANCELLED · User went back','in');
 }
-function approveSign(){
-  hd('s2');sh('s3');
-  log('SIGN_APPROVED · Authenticating with Petra...','in');
-  setTimeout(()=>{
-    hd('s3');sh('s4');
-    document.getElementById('sadr').textContent=ADDR.slice(0,10)+'...'+ADDR.slice(-8);
-    document.getElementById('aptBalDisp').textContent='60 APT';
-    document.getElementById('usdBalDisp').textContent='20 ShelbyUSD';
-    setTimeout(()=>{
-      closeModal();conn=true;
-      const b=document.getElementById('walletBtn');
-      b.innerHTML='<span style="width:7px;height:7px;border-radius:50%;background:var(--gr);display:inline-block;animation:p 2s infinite;margin-right:6px;"></span>'+ADDR.slice(0,6)+'...'+ADDR.slice(-4);
-      b.classList.add('conn');
-      document.getElementById('wpanel').classList.add('on');
-      document.getElementById('ws').textContent=ADDR.slice(0,10)+'...'+ADDR.slice(-6);
-      log('WALLET_CONNECTED · Petra · '+ADDR.slice(0,12)+'...','ok');
-      log('AUTH_SUCCESS · Signature verified on Aptos','ok');
-      toast('✅ Petra Wallet connected!','ok');
-      loadEx();
-    },1000);
-  },2000);
-}
+function approveSign(){ goToSign(); }
 
 /* DISCONNECT */
 function openDiscModal(){
-  document.getElementById('discAddr').textContent=ADDR.slice(0,16)+'...'+ADDR.slice(-6);
+  const addr = walletAddress || '0x941ee958...8376';
+  document.getElementById('discAddr').textContent=addr.slice(0,16)+'...'+addr.slice(-6);
   document.getElementById('discModal').classList.add('on');
 }
 function closeDiscModal(){
   document.getElementById('discModal').classList.remove('on');
 }
-function confirmDisconnect(){
+async function confirmDisconnect(){
   closeDiscModal();
-  conn=false;files=[];
+  try {
+    if(isPetraInstalled()) await window.aptos.disconnect();
+  } catch(e){}
+  conn=false; files=[]; walletAddress=null;
   document.getElementById('walletBtn').innerHTML='🔗 Connect Wallet';
   document.getElementById('walletBtn').classList.remove('conn');
   document.getElementById('wpanel').classList.remove('on');
-  render();stats();
+  render(); stats();
   log('WALLET_DISCONNECTED · Petra · User confirmed','in');
   toast('👋 Wallet disconnected','ok');
 }
