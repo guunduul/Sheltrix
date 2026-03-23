@@ -14,7 +14,9 @@
   "dependencies": {
     "@aptos-labs/wallet-adapter-core": "^8.5.0",
     "@aptos-labs/wallet-adapter-react": "^8.3.2",
-    "@shelby-protocol/sdk": "^0.2.4",
+    "@shelby-protocol/sdk": "^0.2.4"
+  },
+  "devDependencies": {
     "vite": "^8.0.1"
   }
 }
