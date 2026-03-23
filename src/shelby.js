@@ -11,28 +11,34 @@ export const SHELBY_CONFIG = {
 export async function uploadToShelby(file, blobName, expiry, walletAccount) {
   try {
     const { ShelbyClient } = await import('@shelby-protocol/sdk/browser');
-    const client = new ShelbyClient({ network: 'shelbynet', apiKey: '' });
+
+    const client = new ShelbyClient({
+      network: 'shelbynet'
+    });
 
     const result = await client.upload({
-      source: file,
+      source: new Uint8Array(file), // 🔥 FIX DI SINI
       destination: blobName,
       expiration: expiry,
-    });
+      account: {
+    accountAddress: walletAccount?.accountAddress || walletAccount,
+  },
+});
 
     return {
       success: true,
       txn: result.txnHash || result.txn_hash,
       blobName,
     };
-  } catch (err) {
-    const addr = walletAccount?.address?.toString?.() ?? '';
-    return {
-      success: false,
-      error: err.message,
-      redirectUrl:
-        `${SHELBY_CONFIG.explorerUrl}/upload?dest=${encodeURIComponent(blobName)}&addr=${encodeURIComponent(addr)}`
-    };
-  }
+
+  }catch (err) {
+  console.error('UPLOAD ERROR:', err);
+
+  return {
+    success: false,
+    error: err.message
+  };
+}
 }
 
 // Download file
@@ -85,10 +91,10 @@ export async function getBalance(address) {
     const shelbyRaw = await getFABalance(FA_SHELBY);
 
     return {
-      apt: (aptRaw / 1e8).toFixed(4),
-      shelby: (shelbyRaw / 1e6).toFixed(2),
+      apt: aptRaw,
+      shelby: shelbyRaw,
     };
   } catch {
-    return { apt: '0.0000', shelby: '0.00' };
+     return { apt: 0, shelby: 0 };
   }
 }
