@@ -157,70 +157,79 @@ async function onWalletConnected(address) {
 
   let aptBal = '0.0000', usdBal = '0.00';
   try {
-    const res = await fetch(`${SHELBY_CONFIG.aptosFullnode}/accounts/${address}/resources`);
-    if (res.ok) {
-      const data = await res.json();
-      log('DEBUG · Total resources: ' + data.length, 'in');
+    // Shelbynet kadang return empty resources array via /resources
+    // Gunakan endpoint spesifik langsung per resource type
 
-      // Log SEMUA resource types untuk debug
-      data.forEach(r => log('RES · ' + r.type, 'in'));
-
-      // ── APT: coba semua format yang mungkin ──
-      let aptFound = false;
-
-      // 1. CoinStore lama
-      const coin = data.find(r => r.type === '0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>');
-      if (coin?.data?.coin?.value != null) {
-        aptBal = (parseInt(coin.data.coin.value) / 1e8).toFixed(4);
-        log('APT · ' + aptBal + ' (CoinStore)', 'ok'); aptFound = true;
-      }
-
-      // 2. Semua FungibleStore yang ada (ambil yang paling besar nilainya)
-      if (!aptFound) {
-        const faStores = data.filter(r => r.type?.includes('fungible_asset') || r.type?.includes('FungibleStore'));
-        let maxBal = 0;
-        faStores.forEach(r => {
-          const v = parseInt(r.data?.balance || '0');
-          if (v > maxBal) { maxBal = v; }
-        });
-        if (maxBal > 0) {
-          aptBal = (maxBal / 1e8).toFixed(4);
-          log('APT · ' + aptBal + ' (FungibleStore max)', 'ok'); aptFound = true;
-        }
-      }
-
-      // 3. Coba endpoint account langsung
-      if (!aptFound) {
-        try {
-          const acctRes = await fetch(`${SHELBY_CONFIG.aptosFullnode}/accounts/${address}`);
-          if (acctRes.ok) {
-            const acct = await acctRes.json();
-            log('DEBUG · account data: ' + JSON.stringify(acct), 'in');
-          }
-        } catch(_) {}
-      }
-
-      if (!aptFound) log('APT · Not found in any resource — check log for types', 'in');
-
-      // ── ShelbyUSD: cari semua kemungkinan ──
-      const usdCandidates = data.filter(r =>
-        r.type?.toLowerCase().includes('shelby') ||
-        r.type?.includes('1b18363a') ||
-        r.type?.toLowerCase().includes('usd')
-      );
-      log('ShelbyUSD candidates: ' + usdCandidates.length, 'in');
-      usdCandidates.forEach(r => log('USD_TYPE · ' + r.type + ' | bal=' + (r.data?.balance || r.data?.coin?.value || '?'), 'in'));
-
-      if (usdCandidates.length > 0) {
-        const usd = usdCandidates[0];
-        const v = usd.data?.balance ?? usd.data?.coin?.value ?? null;
-        if (v != null) {
-          usdBal = (parseInt(v) / 1e6).toFixed(2);
-          log('ShelbyUSD · ' + usdBal, 'ok');
-        }
+    // ── APT via CoinStore (encode URL manual) ──
+    const aptUrl = `${SHELBY_CONFIG.aptosFullnode}/accounts/${address}/resource/0x1%3A%3Acoin%3A%3ACoinStore%3C0x1%3A%3Aaptos_coin%3A%3AAptosCoin%3E`;
+    log('BALANCE · Fetching APT...', 'in');
+    const aptRes = await fetch(aptUrl);
+    log('BALANCE · APT status: ' + aptRes.status, 'in');
+    if (aptRes.ok) {
+      const aptData = await aptRes.json();
+      log('BALANCE · APT raw: ' + JSON.stringify(aptData?.data), 'in');
+      const val = aptData?.data?.coin?.value;
+      if (val != null) {
+        aptBal = (parseInt(val) / 1e8).toFixed(4);
+        log('APT · ' + aptBal, 'ok');
       }
     } else {
-      log('BALANCE · RPC ' + res.status + ' — ' + await res.text().catch(()=>''), 'in');
+      // Coba format alternatif dengan tanda kurung unencoded
+      const aptUrl2 = `${SHELBY_CONFIG.aptosFullnode}/accounts/${address}/resource/0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>`;
+      const aptRes2 = await fetch(aptUrl2);
+      if (aptRes2.ok) {
+        const d = await aptRes2.json();
+        const val = d?.data?.coin?.value;
+        if (val != null) { aptBal = (parseInt(val) / 1e8).toFixed(4); log('APT · ' + aptBal + ' (v2)', 'ok'); }
+      }
+    }
+
+    // ── ShelbyUSD via CoinStore ──
+    const SHELBYUSD_ADDR = '0x1b18363a9f1fe5e6ebf247daba5cc1c18052bb232efdc4c50f556053922d98e1';
+    // Coba beberapa format type ShelbyUSD
+    const usdTypes = [
+      `0x1::coin::CoinStore<${SHELBYUSD_ADDR}::shelby_usd::ShelbyUSD>`,
+      `0x1::coin::CoinStore<${SHELBYUSD_ADDR}::shelbyusd::ShelbyUSD>`,
+      `0x1::coin::CoinStore<${SHELBYUSD_ADDR}::shelby::ShelbyUSD>`,
+      `0x1::coin::CoinStore<${SHELBYUSD_ADDR}::coin::ShelbyUSD>`,
+    ];
+    log('BALANCE · Fetching ShelbyUSD...', 'in');
+    for (const usdType of usdTypes) {
+      try {
+        const usdRes = await fetch(`${SHELBY_CONFIG.aptosFullnode}/accounts/${address}/resource/${encodeURIComponent(usdType)}`);
+        log('BALANCE · USD try: ' + usdType.slice(0,60) + '... → ' + usdRes.status, 'in');
+        if (usdRes.ok) {
+          const d = await usdRes.json();
+          const val = d?.data?.coin?.value ?? d?.data?.balance;
+          if (val != null) {
+            usdBal = (parseInt(val) / 1e6).toFixed(2);
+            log('ShelbyUSD · ' + usdBal + ' ✓ type: ' + usdType, 'ok');
+            break;
+          }
+        }
+      } catch (_) {}
+    }
+
+    // ── Fallback: scan semua resources lagi, log semua ──
+    if (aptBal === '0.0000' || usdBal === '0.00') {
+      const allRes = await fetch(`${SHELBY_CONFIG.aptosFullnode}/accounts/${address}/resources?limit=9999`);
+      if (allRes.ok) {
+        const all = await allRes.json();
+        log('DEBUG · resources with limit=9999: ' + all.length, 'in');
+        all.forEach(r => log('RES · ' + r.type + ' | ' + JSON.stringify(r.data).slice(0,60), 'in'));
+        // Coba baca APT dari sini
+        if (aptBal === '0.0000') {
+          const c = all.find(r => r.type?.includes('CoinStore') && r.type?.includes('AptosCoin'));
+          if (c?.data?.coin?.value) { aptBal = (parseInt(c.data.coin.value) / 1e8).toFixed(4); log('APT · ' + aptBal + ' (fallback)', 'ok'); }
+        }
+        if (usdBal === '0.00') {
+          const u = all.find(r => r.type?.includes('1b18363a') || r.type?.toLowerCase().includes('shelby'));
+          if (u) {
+            const v = u.data?.coin?.value ?? u.data?.balance;
+            if (v) { usdBal = (parseInt(v) / 1e6).toFixed(2); log('ShelbyUSD · ' + usdBal + ' (fallback)', 'ok'); }
+          }
+        }
+      }
     }
   } catch (e) { log('BALANCE · Error: ' + e.message, 'in'); }
 
@@ -480,4 +489,11 @@ function initUI() {
   });
   // Expose ke global untuk onclick di HTML
   window._sx = { connectWallet, openModal, closeModal, openDiscModal, closeDiscModal, confirmDisconnect, doUp, onSel, filt, dl, del, pwipe, clrLog, claimFaucet, rejectSign, toast, log };
+
+  // fcg = faucet card glow (dipanggil dari onmousemove di HTML)
+  window.fcg = function(el, e) {
+    const r = el.getBoundingClientRect();
+    el.style.setProperty('--mx', (e.clientX - r.left) + 'px');
+    el.style.setProperty('--my', (e.clientY - r.top) + 'px');
+  };
 }
