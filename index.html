@@ -20,11 +20,11 @@ window.addEventListener('load', async () => {
 #cur.c{transform:translate(-50%,-50%) scale(.6);}
 
 :root{
-  --pk:#e8307a;--pk2:#c020b0;--pkl:#f472b6;
-  --bg:#07050f;--bg2:#0e0b1a;--bg3:#160f24;
-  --sf:rgba(255,255,255,.04);--sf2:rgba(255,255,255,.07);
-  --br:rgba(255,255,255,.08);--bp:rgba(232,48,122,.3);
-  --wh:#f0eeff;--mu:#8878a8;--gr:#00e5a0;--ye:#ffd93d;--re:#ff5c5c;
+  --pk:#e8307a;--pk2:#c0106a;--pkl:#ff80b0;
+  --bg:#140008;--bg2:#1e000f;--bg3:#280018;
+  --sf:rgba(255,80,140,.06);--sf2:rgba(255,80,140,.10);
+  --br:rgba(255,80,140,.15);--bp:rgba(232,48,122,.4);
+  --wh:#fff0f5;--mu:#b06080;--gr:#00e5a0;--ye:#ffd93d;--re:#ff5c5c;
   --fm:'Space Mono',monospace;--fb:'Maiandra GD','Maiandra',Candara,'Century Gothic',Futura,sans-serif;
 }
 
@@ -38,9 +38,9 @@ body{background:var(--bg);color:var(--wh);font-family:'Maiandra GD','Maiandra',C
 
 /* nebula */
 .nebula{position:fixed;pointer-events:none;z-index:0;border-radius:50%;filter:blur(80px);}
-.nb1{top:-10%;left:-5%;width:60vw;height:60vw;background:radial-gradient(circle,rgba(100,10,180,.22) 0%,transparent 70%);animation:nb 15s ease-in-out infinite;}
-.nb2{bottom:-15%;right:-10%;width:50vw;height:50vw;background:radial-gradient(circle,rgba(180,20,140,.16) 0%,transparent 70%);animation:nb 18s ease-in-out infinite reverse;}
-.nb3{top:30%;left:30%;width:40vw;height:40vw;background:radial-gradient(circle,rgba(80,0,160,.12) 0%,transparent 70%);animation:nb 20s ease-in-out infinite 3s;}
+.nb1{top:-10%;left:-5%;width:60vw;height:60vw;background:radial-gradient(circle,rgba(220,20,80,.35) 0%,transparent 70%);animation:nb 15s ease-in-out infinite;}
+.nb2{bottom:-15%;right:-10%;width:50vw;height:50vw;background:radial-gradient(circle,rgba(255,40,100,.25) 0%,transparent 70%);animation:nb 18s ease-in-out infinite reverse;}
+.nb3{top:30%;left:30%;width:40vw;height:40vw;background:radial-gradient(circle,rgba(180,10,60,.18) 0%,transparent 70%);animation:nb 20s ease-in-out infinite 3s;}
 @keyframes nb{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(30px,-20px) scale(1.05);}}
 
 .z{position:relative;z-index:1;}
@@ -768,87 +768,84 @@ async function connectPetra(){
   try{
     let address=null;
 
-    // Tunggu wallet inject ke page
-    await new Promise(r=>setTimeout(r,500));
+    // Tunggu wallet fully inject — penting untuk Shelbynet
+    await new Promise(r=>setTimeout(r,800));
 
-    // METHOD 1 — window.petra (paling reliable di Shelbynet)
-    if(window.petra){
-      try{
-        log('PETRA · Trying window.petra...','in');
-        const r=await window.petra.connect();
-        address=r?.address?.toString()||r?.publicKey?.toString();
-        if(address) log('PETRA · Connected via window.petra','ok');
-      }catch(e){
-        if(e.message?.toLowerCase().includes('cancel')||e.message?.toLowerCase().includes('reject')||e.code===4001){
-          hd('s2');sh('s1');
-          toast('❌ Dibatalkan','er');
-          log('PETRA · User cancelled','er');
-          return;
-        }
-        log('PETRA · window.petra err: '+e.message,'in');
-      }
-    }
-
-    // METHOD 2 — window.aptos.connect() (Petra juga inject ini)
-    if(!address&&window.aptos){
-      try{
-        log('PETRA · Trying window.aptos...','in');
-        const r=await window.aptos.connect();
-        address=r?.address?.toString()||r?.publicKey?.toString();
-        if(address) log('PETRA · Connected via window.aptos','ok');
-      }catch(e){
-        if(e.message?.toLowerCase().includes('cancel')||e.message?.toLowerCase().includes('reject')||e.code===4001){
-          hd('s2');sh('s1');
-          toast('❌ Dibatalkan','er');
-          log('PETRA · User cancelled','er');
-          return;
-        }
-        log('PETRA · window.aptos err: '+e.message,'in');
-      }
-    }
-
-    // METHOD 3 — AIP-62 Wallet Standard
-    if(!address){
-      try{
-        await new Promise(r=>setTimeout(r,200));
-        const wallets=window.aptos?.wallets||[];
-        const petra=Array.from(wallets).find(w=>w.name==='Petra'||w.name?.toLowerCase().includes('petra'));
-        if(petra){
-          log('PETRA · Trying AIP-62 standard...','in');
-          const fn=petra.features?.['aptos:connect']?.connect;
-          if(fn){
-            const r=await fn();
-            address=r?.accounts?.[0]?.address?.toString();
-            if(address) log('PETRA · Connected via AIP-62','ok');
-          }
-        }
-      }catch(e){
-        log('PETRA · AIP-62 err: '+e.message,'in');
-      }
-    }
-
-    // Tidak ada wallet ditemukan
-    if(!address&&!window.petra&&!window.aptos){
+    // Cek apakah Petra terinstall sama sekali
+    const hasPetra = !!(window.petra || window.aptos);
+    if(!hasPetra){
       hd('s2');sh('s1');
-      toast('❌ Petra Wallet tidak terdeteksi!','er');
-      log('ERROR · Petra not found — install from petra.app','er');
-      if(confirm('Petra Wallet tidak terdeteksi.\nInstall Petra dulu?')){
-        window.open('https://petra.app','_blank');
-      }
+      toast('❌ Petra Wallet tidak terdeteksi! Install dulu.','er');
+      log('ERROR · Petra not found. Install at petra.app','er');
+      if(confirm('Petra Wallet tidak ditemukan.\nMau install sekarang?')) window.open('https://petra.app','_blank');
       return;
     }
 
+    // Coba window.aptos dulu — ini yang paling stabil di semua versi Petra
+    if(window.aptos){
+      try{
+        log('PETRA · Requesting connection via window.aptos...','in');
+        const resp = await window.aptos.connect();
+        address = resp?.address ?? resp?.publicKey ?? null;
+        if(address) address = address.toString();
+        if(address) log('PETRA · Got address via window.aptos ✓','ok');
+      }catch(e){
+        const msg = (e?.message||'').toLowerCase();
+        if(msg.includes('cancel')||msg.includes('reject')||msg.includes('denied')||e?.code===4001){
+          hd('s2');sh('s1');
+          toast('❌ Dibatalkan','er');
+          log('PETRA · Cancelled by user','er');
+          return;
+        }
+        log('PETRA · window.aptos failed: '+e.message,'in');
+      }
+    }
+
+    // Fallback window.petra
+    if(!address && window.petra){
+      try{
+        log('PETRA · Trying window.petra...','in');
+        const resp = await window.petra.connect();
+        address = resp?.address ?? resp?.publicKey ?? null;
+        if(address) address = address.toString();
+        if(address) log('PETRA · Got address via window.petra ✓','ok');
+      }catch(e){
+        const msg = (e?.message||'').toLowerCase();
+        if(msg.includes('cancel')||msg.includes('reject')||msg.includes('denied')||e?.code===4001){
+          hd('s2');sh('s1');
+          toast('❌ Dibatalkan','er');
+          log('PETRA · Cancelled by user','er');
+          return;
+        }
+        log('PETRA · window.petra failed: '+e.message,'in');
+      }
+    }
+
+    // Fallback AIP-62
+    if(!address){
+      try{
+        const wallets = Array.from(window.aptos?.wallets||[]);
+        const pw = wallets.find(w=>w.name==='Petra'||w.name?.toLowerCase().includes('petra'));
+        if(pw?.features?.['aptos:connect']?.connect){
+          log('PETRA · Trying AIP-62...','in');
+          const r = await pw.features['aptos:connect'].connect();
+          address = r?.accounts?.[0]?.address?.toString();
+          if(address) log('PETRA · Got address via AIP-62 ✓','ok');
+        }
+      }catch(e){ log('PETRA · AIP-62 failed: '+e.message,'in'); }
+    }
+
     if(!address){
       hd('s2');sh('s1');
-      toast('❌ Gagal connect. Cek Petra di network Shelbynet.','er');
-      log('ERROR · No address returned. Make sure Petra is on Shelbynet','er');
+      toast('❌ Tidak bisa ambil address. Coba refresh halaman.','er');
+      log('ERROR · All methods failed. Refresh page and try again.','er');
       return;
     }
 
     walletAddress=address;
-    log('CONNECTED · '+address.slice(0,12)+'...','ok');
+    log('CONNECTED · '+address.slice(0,14)+'...','ok');
     hd('s2');sh('s3');
-    await finalizeConn(address);
+    await finalizeConn(address,'Petra');
 
   }catch(err){
     hd('s2');sh('s1');
