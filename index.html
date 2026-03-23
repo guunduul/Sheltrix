@@ -622,7 +622,6 @@ footer{
     <div class="mb">
       <!-- Step 1: Choose -->
       <div id="s1">
-        <p class="md">// Select your Aptos wallet to connect to Sheltrix decentralized storage.</p>
         <div class="wopts">
           <button class="wopt" id="petraWopt" onclick="connectWallet('petra')">
             <div class="wo-ic" style="background:#5B4FE8;border:none;padding:4px;border-radius:12px;overflow:hidden;">
@@ -630,22 +629,11 @@ footer{
             </div>
             <div class="wo-inf">
               <div class="wo-nm">Petra Wallet</div>
-              <div class="wo-sb">Aptos · Official · Most Popular</div>
+              <div class="wo-sb">Aptos · Shelbynet</div>
             </div>
             <div class="wo-ar">→</div>
           </button>
         </div>
-          <button class="wopt" onclick="connectWallet('okx')">
-            <div class="wo-ic" style="background:#000;border:1px solid #444;padding:4px;border-radius:12px;overflow:hidden;display:flex;align-items:center;justify-content:center;">
-              <svg width="30" height="30" viewBox="0 0 30 30" fill="none"><rect width="30" height="30" rx="6" fill="#000"/><rect x="5" y="5" width="8" height="8" fill="white"/><rect x="17" y="5" width="8" height="8" fill="white"/><rect x="5" y="17" width="8" height="8" fill="white"/><rect x="17" y="17" width="8" height="8" fill="white"/><rect x="11" y="11" width="8" height="8" fill="white"/></svg>
-            </div>
-            <div class="wo-inf">
-              <div class="wo-nm">OKX Wallet</div>
-              <div class="wo-sb">Aptos · Multi-chain · Recommended</div>
-            </div>
-            <div class="wo-ar">→</div>
-          </button>
-        <p class="mn">By connecting you agree to our <a href="#">Terms</a> &amp; <a href="#">Privacy Policy</a></p>
       </div>
 
       <!-- Step 2: Sign Request -->
@@ -712,11 +700,10 @@ footer{
 
 <script>
 /* ═══════════════════════════════════════════════════
-   SHELTRIX — PATCHED JS ONLY (HTML/CSS tidak diubah)
-   Fixes: AIP-62 wallet, real balance, real upload flow
+   SHELTRIX — JS PATCHED
+   Fix: Petra AIP-62 + window.petra + real balance
    ═══════════════════════════════════════════════════ */
 
-/* CONFIG */
 const SHELBY_RPC   = 'https://api.shelbynet.shelby.xyz/v1';
 const SHELBYUSD_FA = '0x1b18363a9f1fe5e6ebf247daba5cc1c18052bb232efdc4c50f556053922d98e1';
 
@@ -754,7 +741,7 @@ let conn=false,files=[],flt='all',sel=[],walletAddress=null;
 function ts(){return new Date().toLocaleTimeString('en-US',{hour12:false});}
 document.getElementById('it').textContent=ts();
 
-/* MODAL UTILS */
+/* MODAL */
 function sh(id){document.getElementById(id).style.display='block';}
 function hd(id){document.getElementById(id).style.display='none';}
 
@@ -768,12 +755,12 @@ document.getElementById('walletModal').addEventListener('click',e=>{if(e.target.
 document.getElementById('discModal').addEventListener('click',e=>{if(e.target.id==='discModal')closeDiscModal();});
 
 /* ═══════════════════════════════════════
-   WALLET CONNECT — AIP-62 + 3 fallback
+   PETRA CONNECT — 3 method fallback
+   Priority: window.petra → window.aptos → AIP-62
    ═══════════════════════════════════════ */
 async function connectWallet(type){
   hd('s1');sh('s2');
-  log((type==='okx'?'OKX':'PETRA')+'_REQUEST · Connecting...','in');
-  if(type==='okx'){await connectOKX();return;}
+  log('PETRA_REQUEST · Connecting...','in');
   await connectPetra();
 }
 
@@ -781,78 +768,98 @@ async function connectPetra(){
   try{
     let address=null;
 
-    // Tunggu wallet registry
-    await new Promise(r=>setTimeout(r,300));
+    // Tunggu wallet inject ke page
+    await new Promise(r=>setTimeout(r,500));
 
-    // METHOD 1 — AIP-62 Wallet Standard (cara baru)
-    const wallets=window.aptos?.wallets||[];
-    const petra=Array.from(wallets).find(w=>w.name==='Petra'||w.name?.toLowerCase().includes('petra'));
-    if(petra){
-      const fn=petra.features?.['aptos:connect']?.connect;
-      if(fn){try{const r=await fn();address=r?.accounts?.[0]?.address?.toString();if(address)log('PETRA · AIP-62 success','ok');}catch(e){log('PETRA · AIP-62 err: '+e.message,'in');}}
+    // METHOD 1 — window.petra (paling reliable di Shelbynet)
+    if(window.petra){
+      try{
+        log('PETRA · Trying window.petra...','in');
+        const r=await window.petra.connect();
+        address=r?.address?.toString()||r?.publicKey?.toString();
+        if(address) log('PETRA · Connected via window.petra','ok');
+      }catch(e){
+        if(e.message?.toLowerCase().includes('cancel')||e.message?.toLowerCase().includes('reject')||e.code===4001){
+          hd('s2');sh('s1');
+          toast('❌ Dibatalkan','er');
+          log('PETRA · User cancelled','er');
+          return;
+        }
+        log('PETRA · window.petra err: '+e.message,'in');
+      }
     }
 
-    // METHOD 2 — window.aptos.connect() (fallback lama)
-    if(!address&&window.aptos?.connect){
-      try{const r=await window.aptos.connect();address=r?.address?.toString();if(address)log('PETRA · Legacy connect success','ok');}catch(e){log('PETRA · Legacy err: '+e.message,'in');}
+    // METHOD 2 — window.aptos.connect() (Petra juga inject ini)
+    if(!address&&window.aptos){
+      try{
+        log('PETRA · Trying window.aptos...','in');
+        const r=await window.aptos.connect();
+        address=r?.address?.toString()||r?.publicKey?.toString();
+        if(address) log('PETRA · Connected via window.aptos','ok');
+      }catch(e){
+        if(e.message?.toLowerCase().includes('cancel')||e.message?.toLowerCase().includes('reject')||e.code===4001){
+          hd('s2');sh('s1');
+          toast('❌ Dibatalkan','er');
+          log('PETRA · User cancelled','er');
+          return;
+        }
+        log('PETRA · window.aptos err: '+e.message,'in');
+      }
     }
 
-    // METHOD 3 — window.petra (fallback)
-    if(!address&&window.petra){
-      try{const r=await window.petra.connect();address=r?.address?.toString();if(address)log('PETRA · window.petra success','ok');}catch(e){log('PETRA · petra err: '+e.message,'in');}
+    // METHOD 3 — AIP-62 Wallet Standard
+    if(!address){
+      try{
+        await new Promise(r=>setTimeout(r,200));
+        const wallets=window.aptos?.wallets||[];
+        const petra=Array.from(wallets).find(w=>w.name==='Petra'||w.name?.toLowerCase().includes('petra'));
+        if(petra){
+          log('PETRA · Trying AIP-62 standard...','in');
+          const fn=petra.features?.['aptos:connect']?.connect;
+          if(fn){
+            const r=await fn();
+            address=r?.accounts?.[0]?.address?.toString();
+            if(address) log('PETRA · Connected via AIP-62','ok');
+          }
+        }
+      }catch(e){
+        log('PETRA · AIP-62 err: '+e.message,'in');
+      }
     }
 
-    // Petra tidak terinstall
-    if(!address&&!window.aptos&&!window.petra){
+    // Tidak ada wallet ditemukan
+    if(!address&&!window.petra&&!window.aptos){
       hd('s2');sh('s1');
-      toast('❌ Petra Wallet tidak ditemukan! Install dulu.','er');
-      log('ERROR · Petra not installed','er');
-      window.open('https://petra.app','_blank');
+      toast('❌ Petra Wallet tidak terdeteksi!','er');
+      log('ERROR · Petra not found — install from petra.app','er');
+      if(confirm('Petra Wallet tidak terdeteksi.\nInstall Petra dulu?')){
+        window.open('https://petra.app','_blank');
+      }
       return;
     }
 
     if(!address){
       hd('s2');sh('s1');
-      toast('❌ Gagal connect. Pastikan Petra di network Shelbynet.','er');
-      log('ERROR · Connect failed — check Petra is on Shelbynet','er');
+      toast('❌ Gagal connect. Cek Petra di network Shelbynet.','er');
+      log('ERROR · No address returned. Make sure Petra is on Shelbynet','er');
       return;
     }
 
     walletAddress=address;
     log('CONNECTED · '+address.slice(0,12)+'...','ok');
     hd('s2');sh('s3');
-    await finalizeConn(address,'Petra');
+    await finalizeConn(address);
 
   }catch(err){
     hd('s2');sh('s1');
-    const msg=err?.message||'Connection failed';
-    if(msg.toLowerCase().includes('cancel')||msg.toLowerCase().includes('reject')){
-      toast('❌ Dibatalkan','er');log('PETRA · User cancelled','er');
-    }else{
-      toast('❌ '+msg,'er');log('ERROR · '+msg,'er');
-    }
-  }
-}
-
-async function connectOKX(){
-  try{
-    if(!window.okxwallet){throw new Error('OKX Wallet tidak ditemukan. Install dulu.');}
-    const resp=await window.okxwallet.aptos.connect();
-    const address=resp?.address?.toString()||resp?.publicKey?.toString();
-    if(!address)throw new Error('No address returned');
-    walletAddress=address;
-    log('OKX_CONNECTED · '+address.slice(0,12)+'...','ok');
-    hd('s2');sh('s3');
-    await finalizeConn(address,'OKX');
-  }catch(err){
-    hd('s2');sh('s1');
-    toast('❌ '+err.message,'er');
-    log('OKX_ERROR · '+err.message,'er');
+    const msg=err?.message||'Unknown error';
+    toast('❌ '+msg,'er');
+    log('ERROR · '+msg,'er');
   }
 }
 
 /* ═══════════════════════════════════════
-   FINALIZE + FETCH REAL BALANCE
+   FINALIZE + REAL BALANCE FETCH
    ═══════════════════════════════════════ */
 async function finalizeConn(address,wName){
   hd('s3');sh('s4');
@@ -863,21 +870,25 @@ async function finalizeConn(address,wName){
     if(res.ok){
       const data=await res.json();
 
-      // APT — coba Fungible Asset dulu, fallback ke CoinStore lama
-      const faStore=data.find(r=>r.type?.includes('fungible_asset')||r.type?.includes('FungibleStore'));
-      const coinStore=data.find(r=>r.type==='0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>');
-      if(faStore?.data?.balance!=null){
-        aptBal=(parseInt(faStore.data.balance)/1e8).toFixed(4);
-        log('APT · '+aptBal+' (Fungible Asset)','ok');
-      }else if(coinStore?.data?.coin?.value!=null){
-        aptBal=(parseInt(coinStore.data.coin.value)/1e8).toFixed(4);
+      // APT — coba Fungible Asset dulu, fallback CoinStore lama
+      const faAPT=data.find(r=>
+        r.type?.includes('0x1::fungible_asset::FungibleStore')||
+        r.type?.includes('AptosCoin')&&r.type?.includes('fungible')
+      );
+      const coinAPT=data.find(r=>r.type==='0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>');
+
+      if(faAPT?.data?.balance!=null){
+        aptBal=(parseInt(faAPT.data.balance)/1e8).toFixed(4);
+        log('APT · '+aptBal+' (FA store)','ok');
+      }else if(coinAPT?.data?.coin?.value!=null){
+        aptBal=(parseInt(coinAPT.data.coin.value)/1e8).toFixed(4);
         log('APT · '+aptBal+' (CoinStore)','ok');
       }else{
         aptBal='0.0000';
-        log('APT · 0 (wallet baru atau belum klaim faucet)','in');
+        log('APT · 0 — klaim faucet dulu','in');
       }
 
-      // ShelbyUSD — cari FA store berdasarkan contract address
+      // ShelbyUSD
       const usdStore=data.find(r=>
         r.type?.includes(SHELBYUSD_FA)||
         r.type?.toLowerCase().includes('shelbyusd')||
@@ -888,14 +899,14 @@ async function finalizeConn(address,wName){
         log('ShelbyUSD · '+usdBal,'ok');
       }else{
         usdBal='0.00';
-        log('ShelbyUSD · 0 (klaim dari faucet dulu)','in');
+        log('ShelbyUSD · 0 — klaim faucet dulu','in');
       }
     }else{
       aptBal='0.0000';usdBal='0.00';
-      log('BALANCE · RPC '+res.status+' — wallet mungkin baru di Shelbynet','in');
+      log('BALANCE · RPC '+res.status,'in');
     }
   }catch(e){
-    log('BALANCE · Fetch error: '+e.message,'in');
+    log('BALANCE · Error: '+e.message,'in');
     aptBal='ERR';usdBal='ERR';
   }
 
@@ -913,7 +924,7 @@ async function finalizeConn(address,wName){
     document.getElementById('apt').textContent=aptBal;
     document.getElementById('usd').textContent=usdBal;
     log('WALLET_CONNECTED · '+(wName||'Petra')+' · '+address.slice(0,12)+'...','ok');
-    toast('✅ '+(wName||'Petra')+' connected!','ok');
+    toast('✅ Petra connected!','ok');
     fetchOnChainVault();
   },1000);
 }
@@ -923,49 +934,33 @@ async function finalizeConn(address,wName){
    ═══════════════════════════════════════ */
 async function fetchOnChainVault(){
   if(!conn||!walletAddress)return;
-  log('VAULT_FETCH · Fetching on-chain data...','in');
+  log('VAULT_FETCH · Checking on-chain blobs...','in');
   try{
-    // Fetch recent transactions — cari yang terkait Shelby storage
     const res=await fetch(`${SHELBY_RPC}/accounts/${walletAddress}/transactions?limit=25`);
-    if(!res.ok){log('VAULT_FETCH · RPC '+res.status,'in');loadEx();return;}
+    if(!res.ok){loadEx();return;}
     const txns=await res.json();
     let found=0;
     txns.forEach(txn=>{
       const fn=txn.payload?.function||'';
-      if(fn.toLowerCase().includes('shelby')||fn.toLowerCase().includes('blob')||fn.toLowerCase().includes('vault')||fn.toLowerCase().includes('store')){
+      if(fn.toLowerCase().includes('shelby')||fn.toLowerCase().includes('blob')||fn.toLowerCase().includes('vault')){
         found++;
         const args=txn.payload?.arguments||[];
         const blobPath=args[0]||'blob-'+txn.hash?.slice(0,8);
         if(!files.find(f=>f.txn===txn.hash)){
-          files.push({
-            name:blobPath.split('/').pop()||blobPath,
-            blob:blobPath,
-            size:parseInt(args[1])||0,
-            exp:'on-chain',
-            txn:txn.hash,
-            st:txn.success?'active':'expired'
-          });
+          files.push({name:blobPath.split('/').pop()||blobPath,blob:blobPath,size:parseInt(args[1])||0,exp:'on-chain',txn:txn.hash,st:txn.success?'active':'expired'});
         }
       }
     });
-    if(found>0){
-      log('VAULT_FETCH · '+found+' Shelby txn(s) found on-chain','ok');
-      render();stats();
-    }else{
-      log('VAULT_FETCH · No blobs found — load example data','in');
-      loadEx();
-    }
-  }catch(e){
-    log('VAULT_FETCH · Error: '+e.message+' — loading example','in');
-    loadEx();
-  }
+    if(found>0){render();stats();log('VAULT_FETCH · '+found+' blob(s) found','ok');}
+    else{log('VAULT_FETCH · No blobs yet — loading example','in');loadEx();}
+  }catch(e){log('VAULT_FETCH · '+e.message,'in');loadEx();}
 }
 
 function rejectSign(){hd('s2');sh('s1');toast('❌ Cancelled','er');}
 function approveSign(){hd('s2');sh('s3');}
 
 /* ═══════════════════════════════════════
-   DISCONNECT — AIP-62 + fallback
+   DISCONNECT
    ═══════════════════════════════════════ */
 function openDiscModal(){
   const addr=walletAddress||'—';
@@ -976,16 +971,8 @@ function closeDiscModal(){document.getElementById('discModal').classList.remove(
 async function confirmDisconnect(){
   closeDiscModal();
   try{
-    // Coba AIP-62 disconnect dulu
-    const wallets=window.aptos?.wallets||[];
-    const petra=Array.from(wallets).find(w=>w.name==='Petra');
-    if(petra?.features?.['aptos:disconnect']?.disconnect){
-      await petra.features['aptos:disconnect'].disconnect();
-    }else if(window.aptos?.disconnect){
-      await window.aptos.disconnect();
-    }else if(window.petra?.disconnect){
-      await window.petra.disconnect();
-    }
+    if(window.petra?.disconnect) await window.petra.disconnect();
+    else if(window.aptos?.disconnect) await window.aptos.disconnect();
   }catch(e){}
   conn=false;files=[];walletAddress=null;
   document.getElementById('walletBtn').innerHTML='🔗 Connect Wallet';
@@ -997,19 +984,16 @@ async function confirmDisconnect(){
 }
 function doConn(wname){}
 
-/* Example data (fallback jika on-chain kosong) */
 function loadEx(){
   if(files.length>0)return;
   files=[
     {name:'test.txt',blob:'files/test.txt',size:42,exp:'2026-12-31',txn:'0x739b618849fc8ee1c18c6e39bbcb2c934e1e7e348979431a96c23417aff11ac2',st:'active'},
     {name:'test2.txt',blob:'files/test2.txt',size:49,exp:'2026-12-31',txn:'0x3047fcf253033666aa6cbf91d01f2d72306fdef543132c5de27086145ca999c5',st:'active'},
   ];
-  render();stats();log('VAULT_LOADED · Example data (no on-chain blobs found)','in');
+  render();stats();log('VAULT_LOADED · Example data','in');
 }
 
-/* ═══════════════════════════════════════
-   FAUCET
-   ═══════════════════════════════════════ */
+/* FAUCET */
 function claimFaucet(type){
   const isAPT=type==='apt';
   const url=isAPT?'https://docs.shelby.xyz/apis/faucet/aptos':'https://docs.shelby.xyz/apis/faucet/shelbyusd';
@@ -1028,9 +1012,7 @@ function claimFaucet(type){
   },800);
 }
 
-/* ═══════════════════════════════════════
-   FILE SELECT
-   ═══════════════════════════════════════ */
+/* FILE SELECT */
 function onSel(inp){
   sel=Array.from(inp.files);if(!sel.length)return;
   const n=sel.map(f=>f.name).join(', ');
@@ -1044,24 +1026,18 @@ dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag');}
 dz.addEventListener('dragleave',()=>dz.classList.remove('drag'));
 dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag');sel=Array.from(e.dataTransfer.files);onSel({files:e.dataTransfer.files});});
 
-/* ═══════════════════════════════════════
-   UPLOAD — redirect ke Shelby Explorer
-   (browser SDK belum tersedia publik)
-   ═══════════════════════════════════════ */
+/* UPLOAD — redirect ke Shelby Explorer */
 function doUp(){
   if(!conn){toast('❌ Connect wallet first!','er');openModal();return;}
   const dest=document.getElementById('bd').value.trim();
   const fn=sel.length>0?sel[0].name:'file.txt',fs=sel.length>0?sel[0].size:42;
   const fd=dest||'files/'+fn;
 
-  // Cek ShelbyUSD balance — jika 0, arahkan ke faucet dulu
   const usdVal=parseFloat(document.getElementById('usd')?.textContent)||0;
   if(usdVal<=0){
     toast('⚠️ ShelbyUSD 0! Klaim dari faucet dulu.','er');
     log('UPLOAD_BLOCKED · Need ShelbyUSD for storage fee','er');
-    if(confirm('ShelbyUSD kamu 0. Mau ke faucet sekarang?')){
-      window.open('https://docs.shelby.xyz/apis/faucet/shelbyusd','_blank');
-    }
+    if(confirm('ShelbyUSD kamu 0. Ke faucet sekarang?')) window.open('https://docs.shelby.xyz/apis/faucet/shelbyusd','_blank');
     return;
   }
 
@@ -1070,30 +1046,19 @@ function doUp(){
   const pw=document.getElementById('pw'),pf=document.getElementById('pf'),pl=document.getElementById('pl'),pp=document.getElementById('pp');
   pw.classList.add('on');pf.style.width='0%';
   log('UPLOAD_STARTED · '+fn+' → '+fd,'in');
-  log('UPLOAD_INFO · Redirecting to Shelby Explorer for real on-chain upload','in');
-  log('UPLOAD_GAS · APT (gas) + ShelbyUSD (storage fee) akan dipakai','in');
+  log('UPLOAD_INFO · Opening Shelby Explorer for real on-chain upload','in');
 
-  // Progress UI sambil buka Explorer
-  const steps=[
-    {p:25,l:'Preparing...'},
-    {p:60,l:'Opening Shelby Explorer...'},
-    {p:90,l:'Redirecting...'},
-    {p:100,l:'Explorer opened ✔ — complete upload there'}
-  ];
+  const steps=[{p:25,l:'Preparing...'},{p:60,l:'Opening Shelby Explorer...'},{p:90,l:'Redirecting...'},{p:100,l:'Explorer opened ✔'}];
   let si=0;
   const iv=setInterval(()=>{
     if(si>=steps.length){
       clearInterval(iv);
-      // Buka Shelby Explorer dengan pre-fill address & path
-      const explorerUrl='https://explorer.shelby.xyz/shelbynet/upload'
-        +'?dest='+encodeURIComponent(fd)
-        +'&addr='+encodeURIComponent(walletAddress);
+      const explorerUrl='https://explorer.shelby.xyz/shelbynet/upload?dest='+encodeURIComponent(fd)+'&addr='+encodeURIComponent(walletAddress);
       window.open(explorerUrl,'_blank');
       btn.disabled=false;btn.innerHTML='🚀 Upload to Sheltrix';
       pw.classList.remove('on');
-      log('EXPLORER_OPENED · Selesaikan upload di tab Shelby Explorer','ok');
-      log('REMINDER · Setelah upload, refresh vault untuk lihat file','in');
-      toast('✅ Shelby Explorer dibuka! Upload di sana.','ok');
+      log('EXPLORER_OPENED · Complete upload at Shelby Explorer','ok');
+      toast('✅ Shelby Explorer dibuka!','ok');
       return;
     }
     pf.style.width=steps[si].p+'%';pl.textContent=steps[si].l;pp.textContent=steps[si].p+'%';si++;
@@ -1120,7 +1085,7 @@ function stats(){
   document.getElementById('sf').textContent=files.length;
   document.getElementById('ss').textContent=fsz(files.reduce((a,f)=>a+(f.size||0),0));
 }
-function dl(i){const f=files[i];log('DOWNLOAD · '+f.blob,'in');window.open('https://explorer.shelby.xyz/shelbynet/blob/'+encodeURIComponent(f.blob),'_blank');setTimeout(()=>{log('DOWNLOAD_OK · '+f.blob,'ok');toast('✅ '+f.name+' opened in Explorer!','ok');},700);}
+function dl(i){const f=files[i];window.open('https://explorer.shelby.xyz/shelbynet/txn/'+f.txn,'_blank');log('DOWNLOAD · '+f.blob,'in');}
 function del(i){const f=files[i];files.splice(i,1);render();stats();log('DELETE · '+f.blob,'er');toast('🗑️ Deleted','ok');}
 function pwipe(){if(!confirm('Wipe all vault records?'))return;files=[];render();stats();log('VAULT_WIPED','er');toast('🗑️ Vault wiped','ok');}
 
