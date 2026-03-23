@@ -624,7 +624,7 @@ footer{
       <div id="s1">
         <p class="md">// Select your Aptos wallet to connect to Sheltrix decentralized storage.</p>
         <div class="wopts">
-          <button class="wopt" id="petraWopt" onclick="goToSign()">
+          <button class="wopt" id="petraWopt" onclick="connectWallet('petra')">
             <div class="wo-ic" style="background:#5B4FE8;border:none;padding:4px;border-radius:12px;overflow:hidden;">
               <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABQCAYAAACOEfKtAAAKAElEQVR4nO2ca2wcVxXH/+fObPxInSZxTdIofaA+VEhpI0qrkIISE6CltVoeCl/5RJoGCYQqBGo/OBUqompFQSKNCq0KQkKQlEdLaQsi3Uq0UaGBJE1STJPYjh3nZcfx2rse78zc8+fDjJ11Uj92du3diP1J15ZHOzPn/uecc8+9c9dAjRo1atSoUaNGjRo1atSoUTokhaThDjok3SnbDjrt7TQApVK2VuzGF0LSADAAKCI2wfkuAAJQEWG57ZsKd75u9EGQlDfegLN+PayIKAAFgK+t66r/+veuvOb6m+qW0rEfaW5B3bFO3mxSxqVVLFsuHd6Ik/HzQcfhg6kTrV/a2iMiYcF13a1bt+qjjz6qFevcXBKHqFN47B+78qt6O8NvDvb7L+RG/O6x0TDkLBgbDb3hIf/gudP2Jz2Hg7s3tfU1FtzHISsX3nPAZOHSf+DiU518YGgg3D2aDexkaZRkqGQYRC0ILMO4+QHpB2Sg0efOk82ERwdPhY/semH0mom77pj8sC5JduygM55x//prrujrDJ4cy4a9k0WzgbU2JGkjBZXn25QoLS1pg/g8kmQuGwyd6A4ee+aHvByIvLGS/S8JptMuAGxc09Nw/LD/iJezpwtEC60dF6wsWJLB+OUyg/bou3vH7gUuwZBmQa7r2ON/auhssHfcaWiDwIYXh2DZsKHS+gFpGQZkd2f+MQAQieyqrDKzoL2dRmIzew+HD3ujkVKWQWBpY9VCzpmAVJKW1lpLWkuS/X3+b9pu62sUieyrrELTwKimQ/smNvafCH4TdShQa/N26g7PHWqVpOeT5Ole/28b1/Q0kDSsRk8kaSDAK7/iouHBcFcsnv9BI+b8KaikzZPM5Uny7JngF5Gt6YrWwRfB2POefby/KXM23BNZH/oVE26C8WdnSeZ9kjzeHeVEplkdIjKevz7xEBcOD9rY8xhURrCp0ehZBtaSB/d5d8e2V77EGTei71j4cmSq9Sum0rQorfUtSc0MBceef+rcYlY6H6bjMOg97D8cGRn4FY/a6VBLa8OAJPu6gycLHWDeGZ8mvbc/tybvWbUMwmgKVvUoaW2Q5/CeXbyOcQqaX/Himz7f3lWfGQwORnb5YeUHjdkSeeHxTv/ncX/md0Bh7PZHDuYeiy2KB40Z569VgbWRoWNeMPDaa1w67hTFaJDYZeNKXt/8Y27FlVfXfQsIVVXjPCKoorXaKTEGAgRaV+82f+xG+5X4cFG5MLGAW9fDiAivW+0+1NjkLFQVjQwqGgsgnMM2LaoECTRcZjeOH0rQh+Job49mGy/vyC7PZoJh0qoNfS1YTZollQ9zawMlLb1smHvld7mVUf/aZ+1YieKMpCsiYe/74bdX3uD8CEAI0C3ycgQofT1jPzWm4YARGJgSnr7FRPCphaRSgOfZoOly/weLl9QtAwzxgQZq/MOYo++F91y/KvVqOp12W1tbZ/TexDBOtJnB4B2NSvtZLb9fQECSr754ZuNM90tKpp/fJ4PAhv40oaETtgycCh+O+zfr0bjoYZukERH999v5WxubzK0iQhKOJBwz6uqlhaTb3Q332mtnzlkzIACMiOQHTtpnFl2BTbBKY8wM1ikAA0u9PT4w67d6SQYRAwDNzdLmuiYFqE0qHgAYa0IRCbu7EYpI4oYoiFVE8mdO2u3Ny80mwAYwKYFMN7BGmgOAobkqPjjrVJKkcFQAaGoyn47+oJRWvpc+6MUpxYiIPXuG25a2YDMQBoCbKiYtNy1yio6AovpOUkREn328v6muEasBAFqifiVSKN7AKW5b2oItQD4gnVSx13JcW3QsFdX5nTujz99yx6Jr6uqdKwDQyEz5Ze64ULzmZdgC2IBckEqWVoo/qSgBN8bj5ZVXm2ucFBwgZKUmHLF4IiJ24CS3j4sHOCmRZDOhwC/eGYoNPwGAyxfLVQCgYEW2ThR4ng6c4rbm5dgMBAFoig7bQsZyCIo9J1H+yo3IDQAAnf/0NylsT9rtzcuwRTUWL9GeIgKwBAC3Tt+PD856Ppxo+ca4ZhEAzFhelZnJ4vHpyPM0NCZVgudx4vdwJn+k2LMTudCCFIreflYqhTnvTB+3Ny/Hg6r5EJDS1vBUAdAAgtFzDW8CAHbObSENQufV9Qpz3pk+bm9ZEeU8EbcMC6ABATHeiB3seGfkEABg4+yL04RJbP5yX2HYnumzsXgIwFRKxEHp646uJRx4o3j9vgcWDZB0itmgWb3bGzBZvFO9fLplhdms6ocAipphTIuJdqCcHQh/m+j0MplRdgpz3sleu33ZSjwI+IERU4awjRxMVRUQkzkXHP/Tc3V/jmZaxc0tq1LAyTnPblu+0kyE7fQLA7NBMS6gMaqAkf4T+PFDT4kHwEGRtVDVCUhSjBGKiD3dy+0tK8wWxVgAIIWEM4zJRHvZI+8zzsg52/37X2Z+xuiVZtHVRZUJGIXtiy+y8VQvn/vQSmyG+qHRBSXNMC5GAVABIz1Hw+9894mWEUTpouhKvKoEZGQ+G4mmhU24ByAUBE15Z4yqGhrjuAMnwudvvr3+hXjkTVTbVpWAsQfIZ++X0z1HsWY0K13G1Lm0LFvhrmqtMa6bG7YHD7/lfiMO3cRPqKoEBAARUZJm1W1ybP8efH40iy7jpBwkyE8Xogo1xnFGhsLs+++FX177VfHieyb+Yk7VCQhMiOisbZUjvYewYTSLLgCOamCTLgCpqhoDMzxovT1/z37x45+sPxyHbkn5oSoFBAARsSSdm9ZI1+FYRGNSjmpYtCeqVTVGzMhQ6O1702v7zH1LdqXTdJPmvUKqY3fmFIyLKCJdHW9zw1WrsKvxsgUfBtQCZlYFoSrUOGJGhtTbuzvbtu7+Ja+Pv9cuh41V64HjFHpi7yFsGM2hCzCO2tDOtGaiatUYmGxGvQO7g7Z195ZXPOASEBC4IJyPYMNoFt3GcR1Vf8oQPB+21nv3raDtznsbyi4ecIkICJwXcfVq6Tr6H2zwcugyzgInCucLiMM2m4F34J/enIkHXEICAudFvOUO6ew5gg2jWe0GjKNqJ0RUVYWByY2o99/92nbnXU1zJh6QXEBGjQS0hAaqFje5nQjn1dLVccD/3PCQ9hvjOLB5G4UtTW7Yeh172faJdak5FQ9ILqALQACmom0RSRpTAKS+wfGKvfm4iLetbThyaH+4Ie+hE47rGCeU3DC8g/uCeREPSFjG5D2MBD7O2cANAU1WComoMTCu45wDgPX9s38PEZ0uNp2mu3a9HPjXbt5140flbWOcxR372LZm3dzlvIvsSHLSSy+x8dolqMtkSjcgXIiR1tbkHU2n6ba2SvjWG7nbQ88sXfeFhr8wTVdKuOb/HSzYGM55/qpCovBjGb/VU47/sBHtUaTZuTN6BVAOu2rUqFGjRo0aNWrUqFGjRo0aNeaE/wHN+UN+ZoFC3AAAAABJRU5ErkJggg==" style="width:30px;height:30px;object-fit:contain;display:block;"/>
             </div>
@@ -635,6 +635,16 @@ footer{
             <div class="wo-ar">→</div>
           </button>
         </div>
+          <button class="wopt" onclick="connectWallet('okx')">
+            <div class="wo-ic" style="background:#000;border:1px solid #444;padding:4px;border-radius:12px;overflow:hidden;display:flex;align-items:center;justify-content:center;">
+              <svg width="30" height="30" viewBox="0 0 30 30" fill="none"><rect width="30" height="30" rx="6" fill="#000"/><rect x="5" y="5" width="8" height="8" fill="white"/><rect x="17" y="5" width="8" height="8" fill="white"/><rect x="5" y="17" width="8" height="8" fill="white"/><rect x="17" y="17" width="8" height="8" fill="white"/><rect x="11" y="11" width="8" height="8" fill="white"/></svg>
+            </div>
+            <div class="wo-inf">
+              <div class="wo-nm">OKX Wallet</div>
+              <div class="wo-sb">Aptos · Multi-chain · Recommended</div>
+            </div>
+            <div class="wo-ar">→</div>
+          </button>
         <p class="mn">By connecting you agree to our <a href="#">Terms</a> &amp; <a href="#">Privacy Policy</a></p>
       </div>
 
@@ -752,9 +762,12 @@ function closeModal(){document.getElementById('walletModal').classList.remove('o
 document.getElementById('walletModal').addEventListener('click',e=>{if(e.target.id==='walletModal')closeModal();});
 document.getElementById('discModal').addEventListener('click',e=>{if(e.target.id==='discModal')closeDiscModal();});
 
-async function goToSign(){
+async function connectWallet(type){
   hd('s1');sh('s2');
-  log('PETRA_REQUEST · Connecting via AIP-62 standard...','in');
+  log((type==='okx'?'OKX':'PETRA')+'_REQUEST · Connecting...','in');
+  if(type==='okx'){ await connectOKX(); return; }
+  // Petra
+  log('PETRA · Trying connection...','in');
   try {
     let address = null;
 
@@ -806,7 +819,25 @@ async function goToSign(){
   }
 }
 
-async function finalizeConn(address){
+
+async function connectOKX(){
+  try {
+    if(!window.okxwallet){ throw new Error('OKX Wallet not found. Please install OKX Wallet extension.'); }
+    const resp = await window.okxwallet.aptos.connect();
+    const address = resp?.address?.toString() || resp?.publicKey?.toString();
+    if(!address) throw new Error('No address returned');
+    walletAddress = address;
+    log('OKX_CONNECTED · '+address.slice(0,12)+'...','ok');
+    hd('s2');sh('s3');
+    await finalizeConn(address, 'OKX');
+  } catch(err){
+    hd('s2');sh('s1');
+    toast('❌ '+err.message,'er');
+    log('OKX_ERROR · '+err.message,'er');
+  }
+}
+
+async function finalizeConn(address, walletName){
   hd('s3');sh('s4');
   let aptBal='—';
   try {
@@ -828,7 +859,7 @@ async function finalizeConn(address){
     document.getElementById('wpanel').classList.add('on');
     document.getElementById('ws').textContent=address.slice(0,10)+'...'+address.slice(-6);
     document.getElementById('apt').textContent=aptBal;
-    log('WALLET_CONNECTED · Petra · '+address.slice(0,12)+'...','ok');
+    log('WALLET_CONNECTED · '+(walletName||'Petra')+' · '+address.slice(0,12)+'...','ok');
     toast('✅ Petra connected!','ok');
     loadEx();
   },1000);
