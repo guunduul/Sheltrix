@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Sheltrix — Decentralized File Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+<script>
+// Aptos Wallet Standard - detect all registered wallets
+window.addEventListener('load', async () => {
+  // Wait for wallets to register
+  await new Promise(r => setTimeout(r, 500));
+});
+</script>
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;cursor:none!important;}
 #cur{position:fixed;width:10px;height:10px;background:#e8307a;border-radius:50%;pointer-events:none;z-index:99999;transform:translate(-50%,-50%);transition:width .2s,height .2s;mix-blend-mode:difference;}
@@ -747,38 +754,50 @@ document.getElementById('discModal').addEventListener('click',e=>{if(e.target.id
 
 async function goToSign(){
   hd('s1');sh('s2');
-  log('PETRA_REQUEST · Connecting...','in');
+  log('PETRA_REQUEST · Connecting via AIP-62 standard...','in');
   try {
     let address = null;
-    // New Petra standard uses window.petra directly
-    if(window.petra){
-      const resp = await window.petra.connect();
-      address = resp?.address?.toString() || resp?.publicKey?.toString();
+
+    // AIP-62 Wallet Standard — use window.aptos.wallets registry
+    const registeredWallets = window.aptos?.wallets || [];
+    const petraWallet = Array.from(registeredWallets).find(w => w.name === 'Petra');
+
+    if(petraWallet){
+      // Use new standard
+      const connectFeature = petraWallet.features['aptos:connect'];
+      if(connectFeature){
+        const result = await connectFeature.connect();
+        address = result?.accounts?.[0]?.address?.toString();
+      }
     }
-    // Fallback: getAptosWallet() standard
-    else if(window.getAptosWallet){
-      const wallet = window.getAptosWallet();
-      const resp = await wallet.connect();
-      address = resp?.address?.toString();
+
+    // Fallback: try window.aptos directly (some versions still work)
+    if(!address){
+      try {
+        const r = await window.aptos?.connect?.();
+        address = r?.address?.toString();
+      } catch(e2){}
     }
-    else {
+
+    // Last fallback: prompt user to copy address manually
+    if(!address){
       hd('s2');sh('s1');
-      toast('❌ Petra not found — please install Petra Wallet','er');
-      window.open('https://chromewebstore.google.com/detail/petra-aptos-wallet/ejjladinnckdgjemekebdpeokbikhfci','_blank');
+      const manual = prompt('Petra connection failed.\n\nPlease paste your wallet address manually:');
+      if(manual && manual.startsWith('0x')){
+        await finalizeConn(manual.trim());
+        return;
+      }
+      toast('❌ Could not connect to Petra. Try refreshing.','er');
+      log('ERROR · All connection methods failed','er');
       return;
     }
-    if(!address){ throw new Error('No address returned'); }
+
     walletAddress = address;
     log('CONNECTED · '+address.slice(0,12)+'...','ok');
     hd('s2');sh('s3');
-    // Try signature
-    try {
-      if(window.petra){
-        await window.petra.signMessage({message:`Welcome to Sheltrix!\nAddress: ${address}`,nonce:Date.now().toString()});
-      }
-      log('SIGNED · Auth verified','ok');
-    } catch(se){ log('SIGN_SKIPPED · Continuing anyway','in'); }
+    log('SIGN_SKIPPED · Proceeding','in');
     await finalizeConn(address);
+
   } catch(err){
     hd('s2');sh('s1');
     const msg = err?.message||'Connection failed';
