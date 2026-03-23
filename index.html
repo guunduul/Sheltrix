@@ -639,13 +639,14 @@ footer{
       <!-- Step 2: Connecting spinner -->
       <div id="s2" style="display:none">
         <div class="petra-connecting">
-          <div style="font-size:36px;margin-bottom:14px;display:inline-block;animation:sp .8s linear infinite;">⟳</div>
-          <div style="font-size:15px;font-weight:700;margin-bottom:6px;">Menunggu Petra...</div>
+          <div style="font-size:36px;margin-bottom:16px;display:inline-block;animation:sp .8s linear infinite;">⟳</div>
+          <div style="font-size:15px;font-weight:700;margin-bottom:8px;">Menunggu Petra...</div>
           <div style="font-size:11px;color:var(--mu);font-family:var(--fm);">Approve popup Petra di browser kamu</div>
         </div>
       </div>
-      <!-- Step 3: placeholder -->
+      <!-- Steps 3 placeholder (tidak dipakai) -->
       <div id="s3" style="display:none"></div>
+
       <!-- Step 4: Success -->
       <div id="s4" style="display:none">
         <div class="sw">
@@ -735,94 +736,117 @@ document.getElementById('walletModal').addEventListener('click',e=>{if(e.target.
 document.getElementById('discModal').addEventListener('click',e=>{if(e.target.id==='discModal')closeDiscModal();});
 
 /* ═══════════════════════════════════════
-   PETRA CONNECT — AIP-62 only (window.aptos/petra removed in modern Petra)
+   PETRA CONNECT — ALL METHODS, GO STRAIGHT TO SUCCESS
    ═══════════════════════════════════════ */
 async function connectWallet(type){
   hd('s1');sh('s2');
-  log('PETRA_REQUEST · Connecting via AIP-62...','in');
+  log('PETRA_REQUEST · Connecting...','in');
   await connectPetra();
 }
 
 async function connectPetra(){
   try{
-    // Tunggu wallet registry inject
+    let address = null;
+
+    // Tunggu wallet inject (penting!)
     await new Promise(r=>setTimeout(r,600));
 
-    // Kumpulkan semua wallet dari AIP-62 registry
-    const getWallets = ()=>{
-      if(window.aptos?.wallets) return Array.from(window.aptos.wallets);
-      if(window.wallets) return Array.from(window.wallets);
-      return [];
-    };
-
-    let wallets = getWallets();
-
-    // Kalau kosong, tunggu event wallet-registered (max 3 detik)
-    if(wallets.length === 0){
-      log('PETRA · Waiting for AIP-62 registry...','in');
-      await new Promise(resolve=>{
-        window.addEventListener('aptos:wallet-registered', resolve, {once:true});
-        setTimeout(resolve, 3000);
-      });
-      wallets = getWallets();
-    }
-
-    log('PETRA · Registry wallets: '+wallets.map(w=>w.name).join(', '),'in');
-
-    const petraWallet = wallets.find(w=>
-      w.name==='Petra' || w.name?.toLowerCase().includes('petra')
-    );
-
-    if(!petraWallet){
-      hd('s2');sh('s1');
-      toast('❌ Petra tidak terdeteksi. Refresh halaman & coba lagi.','er');
-      log('ERROR · Petra not in registry. Install Petra & refresh page.','er');
-      if(confirm('Petra tidak terdeteksi di AIP-62 registry.\nRefresh halaman dulu.\nKalau belum install, mau ke petra.app?')){
-        window.open('https://petra.app','_blank');
+    // ── METHOD 1: window.aptos (Petra lama, paling umum) ──
+    if(!address && window.aptos && typeof window.aptos.connect === 'function'){
+      try{
+        log('PETRA · Trying window.aptos.connect()...','in');
+        const r = await window.aptos.connect();
+        address = r?.address ?? r?.publicKey ?? null;
+        if(address && typeof address !== 'string') address = address.toString();
+        if(address) log('PETRA · Got address via window.aptos ✓','ok');
+      }catch(e){
+        if(e?.code===4001||/cancel|reject|denied|user/i.test(e?.message||'')){
+          hd('s2');sh('s1');
+          toast('❌ Dibatalkan','er');
+          log('PETRA · Cancelled by user','er');
+          return;
+        }
+        log('PETRA · window.aptos failed: '+(e?.message||''),'in');
       }
-      return;
     }
 
-    const connectFn = petraWallet.features?.['aptos:connect']?.connect;
-    if(!connectFn){
+    // ── METHOD 2: window.petra (beberapa build Shelbynet) ──
+    if(!address && window.petra && typeof window.petra.connect === 'function'){
+      try{
+        log('PETRA · Trying window.petra.connect()...','in');
+        const r = await window.petra.connect();
+        address = r?.address ?? r?.publicKey ?? null;
+        if(address && typeof address !== 'string') address = address.toString();
+        if(address) log('PETRA · Got address via window.petra ✓','ok');
+      }catch(e){
+        if(e?.code===4001||/cancel|reject|denied|user/i.test(e?.message||'')){
+          hd('s2');sh('s1');
+          toast('❌ Dibatalkan','er');
+          log('PETRA · Cancelled by user','er');
+          return;
+        }
+        log('PETRA · window.petra failed: '+(e?.message||''),'in');
+      }
+    }
+
+    // ── METHOD 3: AIP-62 registry (Petra terbaru) ──
+    if(!address){
+      try{
+        const reg = window.aptos?.wallets || window.wallets || [];
+        const pw = Array.from(reg).find(w=>
+          w.name==='Petra'||w.name?.toLowerCase().includes('petra')
+        );
+        if(pw){
+          log('PETRA · Found in AIP-62 registry, connecting...','in');
+          const fn = pw.features?.['aptos:connect']?.connect;
+          if(fn){
+            const r = await fn();
+            const acct = r?.accounts?.[0] ?? r?.account ?? r;
+            address = acct?.address ?? acct ?? null;
+            if(address && typeof address !== 'string') address = address.toString();
+            if(address) log('PETRA · Got address via AIP-62 ✓','ok');
+          }
+        } else {
+          log('PETRA · Not in AIP-62 registry','in');
+        }
+      }catch(e){
+        if(e?.code===4001||/cancel|reject|denied|user/i.test(e?.message||'')){
+          hd('s2');sh('s1');
+          toast('❌ Dibatalkan','er');
+          log('PETRA · Cancelled by user','er');
+          return;
+        }
+        log('PETRA · AIP-62 failed: '+(e?.message||''),'in');
+      }
+    }
+
+    // ── Tidak ada wallet sama sekali ──
+    if(!window.aptos && !window.petra && !window.aptos?.wallets?.length){
       hd('s2');sh('s1');
-      toast('❌ Petra tidak support connect feature. Update Petra.','er');
-      log('ERROR · aptos:connect feature missing — update Petra extension','er');
+      toast('❌ Petra tidak terdeteksi! Coba refresh halaman dulu.','er');
+      log('ERROR · Petra not detected. Try hard refresh (Ctrl+Shift+R)','er');
       return;
     }
 
-    log('PETRA · Calling connect — approve popup Petra...','in');
-    const result = await connectFn();
-
-    // Parse address dari response AIP-62 (bisa bermacam format)
-    const acct = result?.accounts?.[0] ?? result?.account ?? result;
-    let address = acct?.address ?? acct?.publicKey ?? null;
-    if(address && typeof address === 'object' && address.toString) address = address.toString();
-    if(address && typeof address !== 'string') address = String(address);
-
-    if(!address || address.length < 10){
+    // ── Dapat wallet tapi address kosong ──
+    if(!address){
       hd('s2');sh('s1');
-      log('ERROR · Bad address: '+JSON.stringify(result),'er');
-      toast('❌ Tidak bisa baca address. Coba refresh & connect ulang.','er');
+      toast('❌ Tidak dapat address. Refresh halaman lalu coba lagi.','er');
+      log('ERROR · All methods returned no address. Hard refresh & retry.','er');
       return;
     }
 
+    // ── SUKSES — langsung ke success screen (skip sign request) ──
     walletAddress = address;
     log('CONNECTED · '+address.slice(0,14)+'...','ok');
-    hd('s2');sh('s4');
-    await finalizeConn(address,'Petra');
+    hd('s2'); sh('s4'); // langsung s4, bukan s3
+    await finalizeConn(address, 'Petra');
 
   }catch(err){
     hd('s2');sh('s1');
-    const msg = err?.message||'Unknown error';
-    const lower = msg.toLowerCase();
-    if(lower.includes('cancel')||lower.includes('reject')||lower.includes('denied')||err?.code===4001){
-      toast('❌ Dibatalkan','er');
-      log('PETRA · Cancelled by user','er');
-    } else {
-      toast('❌ '+msg,'er');
-      log('ERROR · '+msg,'er');
-    }
+    const msg = err?.message || 'Unknown error';
+    toast('❌ '+msg,'er');
+    log('ERROR · '+msg,'er');
   }
 }
 
@@ -830,6 +854,7 @@ async function connectPetra(){
    FINALIZE + REAL BALANCE FETCH
    ═══════════════════════════════════════ */
 async function finalizeConn(address,wName){
+  // s4 sudah ditampilkan oleh connectPetra
   let aptBal='—',usdBal='—';
 
   try{
