@@ -6,24 +6,29 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    // Rollup options untuk handle package yang tidak support browser
+    chunkSizeWarningLimit: 600,
     rollupOptions: {
       external: [],
+      output: {
+        manualChunks: (id) => {
+          // 🔥 REMOVE shelby-sdk chunk - tidak perlu lagi
+          if (id.includes('@aptos-labs/wallet-adapter-core')) {
+            return 'wallet-core';
+          }
+        }
+      }
     },
     commonjsOptions: {
       include: [/node_modules/],
     }
   },
   optimizeDeps: {
-    // Exclude SDK yang hanya support Node.js
-    exclude: ['@shelby-protocol/sdk'],
     include: ['@aptos-labs/wallet-adapter-core']
   },
   resolve: {
     conditions: ['browser', 'module', 'import', 'default']
   },
   define: {
-    // Polyfill global untuk beberapa package Node.js
     global: 'globalThis',
     'process.env': {}
   }

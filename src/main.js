@@ -2,62 +2,24 @@
  * SHELTRIX — src/main.js  (FIXED — production-ready)
  * Wallet: Petra (window.aptos / window.petra) + AIP-62 WalletCore fallback
  * Storage: @shelby-protocol/sdk via shelby.js
- *
- * FIXES APPLIED:
- *  1. window._sx now exposes ALL required methods (openModal, closeModal,
- *     closeDiscModal, confirmDisconnect, connectWallet, onSel, filt, doUp,
- *     dl, del, pwipe, claimFaucet, clrLog)
- *  2. onWalletConnected had a stray `}` that closed the function body early —
- *     all logic after the balance fetch (UI update, conn=true, etc.) was
- *     running at module scope, crashing with "closeModal is not defined".
- *     Fixed by removing the rogue `}` and ensuring one clean function body.
- *  3. Vercel build error "Missing catch or finally" — caused by the orphaned
- *     try-block outside onWalletConnected. Fixed by the same refactor.
- *  4. Cursor becomes invisible / UI unclickable — CSS sets `cursor:none` on
- *     everything, which is correct for the custom cursor, but the custom
- *     cursor elements (#cur / #ring) were only initialised inside initUI()
- *     which runs on DOMContentLoaded. If that throw, the cursor was lost.
- *     Added a defensive guard so the cursor init never crashes the whole
- *     module.  Also added pointer-events:none to all overlay elements so
- *     they never silently eat clicks when hidden.
- *  5. Modal show/hide used both classList.add('on') and style.display — now
- *     unified: the overlay approach uses 'on' class only, and window._sx
- *     delegates to the same exported helpers.
- *  6. getBalance is imported from shelby.js (correct RPC).
- *  7. All async functions have complete try/catch.
- *  8. No dynamic import() calls at top level (Vercel-safe).
  */
+
+// 🔥 IMPORT BUFFER DULU - PALING ATAS
 import { Buffer } from 'buffer';
+window.Buffer = Buffer;
+globalThis.Buffer = Buffer; // 🔥 JUGA SET KE GLOBALTHIS
+
 import { WalletCore } from '@aptos-labs/wallet-adapter-core';
 import { uploadToShelby, downloadFromShelby, SHELBY_CONFIG, getBalance } from './shelby.js';
 
-window.Buffer = Buffer;
-
-window._sx = {
-  openModal: () => {
-    document.getElementById('connectModal')?.classList.add('show');
-  },
-
-  closeModal: () => {
-    document.getElementById('connectModal')?.classList.remove('show');
-  },
-
-  closeDiscModal: () => {
-    document.getElementById('discModal')?.classList.remove('show');
-  },
-
-  confirmDisconnect: () => {
-    console.log('DISCONNECT');
-  },
-
-  claimFaucet: () => {
-    console.log('FAUCET CLICK');
-  }
-};
+// window._sx is fully initialised inside initUI() after all functions are defined.
 
 // ── STATE ────────────────────────────────────────────
 let conn = false, files = [], flt = 'all', sel = [];
 let walletAddress = null, walletAccount = null, walletCore = null;
+
+// 🔥 EXPORT walletCore ke global supaya bisa diakses dari shelby.js
+window.__walletCore = null;
 
 // ── BOOT ─────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -69,71 +31,109 @@ document.addEventListener('DOMContentLoaded', async () => {
 // ── WALLET CORE INIT ─────────────────────────────────
 async function initWalletCore() {
   try {
+    console.log('🔧 Starting WalletCore initialization...');
+
     walletCore = new WalletCore([], [], {
-      onError: (err) => log('WALLET_ERR · ' + (err?.message || err), 'er')
+      onError: (err) => {
+        console.error('WalletCore error callback:', err);
+        log('WALLET_ERR · ' + (err?.message || err), 'er');
+      }
     });
 
-    // ✅ CONNECT (FIX FINAL)
-   walletCore.on('connect', async (account) => {
-  console.log('walletAccount FULL:', account);
+    console.log('✅ WalletCore created');
+    window.__walletCore = walletCore; // 🔥 expose segera setelah dibuat
+    console.log('🔍 WalletCore methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(walletCore)).join(', '));
+    log('WALLET_CORE · Initialized', 'ok');
+    
+    // ✅ CONNECT EVENT
+    console.log('📌 Setting up connect listener...');
+    walletCore.on('connect', async (account) => {
+      try {
+        console.log('✅ Connect event fired, account:', account);
+        walletAccount = account;
 
-  walletAccount = account;
+        let addr = '';
+        if (typeof account?.address === 'string') {
+          addr = account.address;
+        } else if (account?.address?.toString) {
+          addr = account.address.toString();
+        } else if (account?.accounts?.[0]?.address) {
+          addr = account.accounts[0].address.toString();
+        }
 
-  // 🔥 FIX ADDRESS AMAN
-  let addr = '';
+        console.log('📍 Address extracted:', addr);
 
-  if (typeof account?.address === 'string') {
-    addr = account.address;
-  } else if (account?.address?.toString) {
-    addr = account.address.toString();
-  } else if (account?.accounts?.[0]?.address) {
-    addr = account.accounts[0].address.toString();
-  }
+        if (!addr || !addr.startsWith('0x')) {
+          console.warn('❌ ADDRESS INVALID:', account);
+          return;
+        }
 
-  if (!addr || !addr.startsWith('0x')) {
-    console.log('❌ ADDRESS INVALID:', account);
-    return;
-  }
+        walletAddress = addr;
+        console.log('🎉 Calling onWalletConnected with:', addr);
+        await onWalletConnected(addr);
+      } catch (connectErr) {
+        console.error('❌ Connect handler error:', connectErr);
+      }
+    });
 
-  walletAddress = addr;
-  onWalletConnected(addr);
-});
-    // ✅ DISCONNECT
-    walletCore.on('disconnect', onWalletDisconnected);
+    // ✅ DISCONNECT EVENT
+    console.log('📌 Setting up disconnect listener...');
+    walletCore.on('disconnect', () => {
+      try {
+        console.log('🔌 Disconnect event fired');
+        onWalletDisconnected();
+      } catch (disconnectErr) {
+        console.error('❌ Disconnect handler error:', disconnectErr);
+      }
+    });
 
-    // ✅ ACCOUNT CHANGE (FIX FINAL)
-   walletCore.on('accountChange', async (account) => {
-  console.log('ACCOUNT CHANGE FULL:', account);
+    // ✅ ACCOUNT CHANGE EVENT
+    console.log('📌 Setting up accountChange listener...');
+    walletCore.on('accountChange', async (account) => {
+      try {
+        console.log('🔄 AccountChange event fired, account:', account);
+        walletAccount = account;
 
-  walletAccount = account;
+        let addr = '';
+        if (typeof account?.address === 'string') {
+          addr = account.address;
+        } else if (account?.address?.toString) {
+          addr = account.address.toString();
+        } else if (account?.accounts?.[0]?.address) {
+          addr = account.accounts[0].address.toString();
+        }
 
-  let addr = '';
+        if (addr) {
+          walletAddress = addr;
+          console.log('✅ Account changed to:', addr);
+          log('ACCOUNT_CHANGE · ' + addr.slice(0, 12) + '...', 'in');
+        }
+      } catch (accountChangeErr) {
+        console.error('❌ AccountChange handler error:', accountChangeErr);
+      }
+    });
 
-  if (typeof account?.address === 'string') {
-    addr = account.address;
-  } else if (account?.address?.toString) {
-    addr = account.address.toString();
-  } else if (account?.accounts?.[0]?.address) {
-    addr = account.accounts[0].address.toString();
-  }
-
-  if (addr) {
-    walletAddress = addr;
-    log('ACCOUNT_CHANGE · ' + addr.slice(0, 12) + '...', 'in');
-  }
-});
-
+    console.log('⏳ Waiting 800ms for wallet detection...');
     await new Promise(r => setTimeout(r, 800));
 
+    console.log('✅ Timeout complete');
+    
     const detected = walletCore.wallets || [];
+    console.log('📱 Detected wallets:', detected.map(w => w.name));
     log('WALLETS · [' + detected.map(w => w.name).join(', ') + ']', 'ok');
+    log('WALLET_CORE · Ready', 'ok');
+
+    console.log('✅ WalletCore initialization complete');
 
   } catch (err) {
+    console.error('❌ WalletCore initialization error:', err);
+    console.error('   Message:', err?.message);
+    console.error('   Stack:', err?.stack);
+    
     log('WALLET_CORE · ' + err.message + ' — using fallback', 'in');
     walletCore = null;
   }
 }
-
 // helper: extract address from various response formats
 function extractAddr(obj) {
   if (!obj) return null;
@@ -259,65 +259,177 @@ onWalletConnected(addr);
 // FIX: The original code had a stray `}` after `let aptBal = '0.0000', usdBal = '0.00';`
 // which closed the function early. Everything below that line was running at
 // module scope and crashing. This is now one clean, complete function.
+// 🔥 When wallet connected
 async function onWalletConnected(address) {
-  log('CONNECTED · ' + address.slice(0, 14) + '...', 'ok');
-  hd('s2'); sh('s4');
-
-  let aptBal = '0.0000', usdBal = '0.00';
-
   try {
-    const bal = await getBalance(address);
-    aptBal = formatToken(bal.apt, 8);
-    usdBal = formatToken(bal.shelby, 4);
-    log('BALANCE · APT=' + aptBal + ' Shelby=' + usdBal, 'ok');
-  } catch (e) {
-    log('BALANCE ERROR · ' + e.message, 'er');
-  }
-
-  // ✅ SEMUA UI HARUS DI DALAM FUNCTION INI
-  const sadr = document.getElementById('sadr');
-  if (sadr) sadr.textContent = address.slice(0, 10) + '...' + address.slice(-8);
-
-  const aptBalDisp = document.getElementById('aptBalDisp');
-  if (aptBalDisp) aptBalDisp.textContent = aptBal + ' APT';
-
-  const usdBalDisp = document.getElementById('usdBalDisp');
-  if (usdBalDisp) usdBalDisp.textContent = usdBal + ' ShelbyUSD';
-
-  setTimeout(() => {
-    closeModal();
+    console.log('🎯 onWalletConnected called with:', address);
+    
     conn = true;
+    walletAddress = address;
 
-    const b = document.getElementById('walletBtn');
-    if (b) {
-      b.innerHTML =
-        '<span style="width:7px;height:7px;border-radius:50%;background:var(--gr);display:inline-block;animation:p 2s infinite;margin-right:6px;"></span>' +
-        address.slice(0, 6) + '...' + address.slice(-4);
-      b.classList.add('conn');
+    log('CONNECTED · ' + address.slice(0, 14) + '...', 'ok');
+    hd('s2'); 
+    sh('s4');
+
+    // 🔥 CREATE proper Account object untuk Shelby SDK
+    console.log('📦 Creating Account object for Shelby SDK...');
+    
+    const accountForShelby = {
+      accountAddress: address,
+      publicKey: walletAccount?.publicKey || null,
+      signingScheme: 'single_signature_scheme',
+      
+      sign: async (message) => {
+        try {
+          console.log('🔐 Signing message...');
+          if (walletCore && typeof walletCore.signMessage === 'function') {
+            const signature = await walletCore.signMessage({
+              message: message,
+              nonce: Math.random().toString(36).substring(7),
+            });
+            console.log('✅ Signed');
+            return signature;
+          }
+          throw new Error('Wallet signing not available');
+        } catch (err) {
+          console.error('Sign error:', err);
+          throw err;
+        }
+      },
+
+      signTransaction: async (transaction) => {
+        try {
+          console.log('🔐 Signing transaction...');
+          if (walletCore && typeof walletCore.signTransaction === 'function') {
+            const signed = await walletCore.signTransaction(transaction);
+            console.log('✅ Transaction signed');
+            return signed;
+          }
+          throw new Error('Transaction signing not available');
+        } catch (err) {
+          console.error('Sign transaction error:', err);
+          throw err;
+        }
+      }
+    };
+  
+ console.log('✅ Account object created:', accountForShelby.accountAddress);
+    
+    window.__accountForShelby = accountForShelby;
+    window.__walletCore = walletCore;
+
+    // Get balance
+    let aptBal = '0.0000', usdBal = '0.00';
+    try {
+      const bal = await getBalance(address);
+      aptBal = formatToken(bal.apt, 8);
+      usdBal = formatToken(bal.shelby, 4);
+      log('BALANCE · APT=' + aptBal + ' Shelby=' + usdBal, 'ok');
+    } catch (e) {
+      console.warn('Balance fetch error:', e?.message);
+      log('BALANCE_ERROR · ' + e.message, 'er');
     }
 
-    const wpanel = document.getElementById('wpanel');
-    if (wpanel) wpanel.classList.add('on');
+    // Update UI
+    const addrEl = document.getElementById('ad');
+    if (addrEl) {
+      addrEl.textContent = address.slice(0, 6) + '...' + address.slice(-4);
+      addrEl.title = address;
+    }
 
-    const ws = document.getElementById('ws');
-    if (ws) ws.textContent = address.slice(0, 10) + '...' + address.slice(-6);
+    const balEl = document.getElementById('bl');
+    if (balEl) {
+      balEl.textContent = aptBal + ' APT · ' + usdBal + ' USD';
+    }
 
-    const apt = document.getElementById('apt');
-    if (apt) apt.textContent = aptBal;
+    toast('✅ Wallet connected!', 'ok');
 
-    const usd = document.getElementById('usd');
-    if (usd) usd.textContent = usdBal;
+    // Update additional UI elements
+    const sadr = document.getElementById('sadr');
+    if (sadr) sadr.textContent = address.slice(0, 10) + '...' + address.slice(-8);
+    const aptBalDisp = document.getElementById('aptBalDisp');
+    if (aptBalDisp) aptBalDisp.textContent = aptBal + ' APT';
+    const usdBalDisp = document.getElementById('usdBalDisp');
+    if (usdBalDisp) usdBalDisp.textContent = usdBal + ' ShelbyUSD';
 
-    log('WALLET_CONNECTED · ' + address.slice(0, 14) + '...', 'ok');
-    toast('✅ Petra connected!', 'ok');
+    setTimeout(() => {
+      closeModal();
 
-    fetchOnChainVault();
-  }, 1000);
+      const b = document.getElementById('walletBtn');
+      if (b) {
+        b.innerHTML =
+          '<span style="width:7px;height:7px;border-radius:50%;background:var(--gr);display:inline-block;animation:p 2s infinite;margin-right:6px;"></span>' +
+          address.slice(0, 6) + '...' + address.slice(-4);
+        b.classList.add('conn');
+      }
+
+      const wpanel = document.getElementById('wpanel');
+      if (wpanel) wpanel.classList.add('on');
+
+      const ws = document.getElementById('ws');
+      if (ws) ws.textContent = address.slice(0, 10) + '...' + address.slice(-6);
+
+      const apt = document.getElementById('apt');
+      if (apt) apt.textContent = aptBal;
+
+      const usd = document.getElementById('usd');
+      if (usd) usd.textContent = usdBal;
+
+      log('WALLET_CONNECTED · ' + address.slice(0, 14) + '...', 'ok');
+      fetchOnChainVault();
+    }, 1000);
+
+    console.log('✅ onWalletConnected complete');
+
+  } catch (err) {
+    console.error('❌ onWalletConnected error:', err);
+    log('CONNECT_ERROR · ' + err.message, 'er');
+  }
 }
+
+// 🔥 When wallet disconnected
+async function onWalletDisconnected() {
+  try {
+    console.log('🔌 onWalletDisconnected called');
+    
+    conn = false;
+    walletAddress = null;
+    walletAccount = null;
+    files = [];
+    window.__accountForShelby = null;
+    window.__walletCore = null;
+
+    log('DISCONNECTED', 'in');
+    hd('s4');
+    sh('s2');
+
+    const addrEl = document.getElementById('ad');
+    if (addrEl) addrEl.textContent = 'Connect';
+
+    const balEl = document.getElementById('bl');
+    if (balEl) balEl.textContent = '- APT · - USD';
+
+    const wb = document.getElementById('walletBtn');
+    if (wb) { wb.innerHTML = '🔗 Connect Wallet'; wb.classList.remove('conn'); }
+
+    const wpanel = document.getElementById('wpanel');
+    if (wpanel) wpanel.classList.remove('on');
+
+    render(); stats();
+    toast('👋 Disconnected', 'ok');
+    
+    console.log('✅ onWalletDisconnected complete');
+  } catch (err) {
+    console.error('❌ onWalletDisconnected error:', err);
+  }
+}
+
+// ── FORMAT TOKEN ─────────────────────────────────────
 function formatToken(amount, decimals = 6) {
   if (!amount) return '0.00';
   return (Number(amount) / Math.pow(10, decimals)).toFixed(4);
 }
+
 // ── DISCONNECT ───────────────────────────────────────
 export function openDiscModal() {
   const addr = walletAddress || '—';
@@ -339,17 +451,9 @@ export async function confirmDisconnect() {
   onWalletDisconnected();
 }
 
-function onWalletDisconnected() {
-  conn = false; files = []; walletAddress = null; walletAccount = null;
-  const wb = document.getElementById('walletBtn');
-  if (wb) { wb.innerHTML = '🔗 Connect Wallet'; wb.classList.remove('conn'); }
-  const wpanel = document.getElementById('wpanel');
-  if (wpanel) wpanel.classList.remove('on');
-  render(); stats();
-  log('DISCONNECTED', 'in'); toast('👋 Disconnected', 'ok');
-}
+// (onWalletDisconnected defined above as async export)
 
-// ── UPLOAD via shelby.js SDK ──────────────────────────
+// ── UPLOAD via direct RPC ──────────────────────────
 export async function doUp() {
   if (!conn) { toast('❌ Connect wallet first!', 'er'); openModal(); return; }
   if (!sel.length) { toast('❌ Pilih file dulu!', 'er'); return; }
@@ -371,19 +475,25 @@ export async function doUp() {
 
   log('UPLOAD · ' + fn + ' → ' + fd, 'in');
 
-  console.log('WALLET ADDRESS:', walletAddress);
-  console.log('walletAccount FULL:', walletAccount);
-
   try {
-   // 🔥 CONVERT FILE → BUFFER
-const fileBuffer = await sel[0].arrayBuffer();
+    if (!walletAddress) {
+      throw new Error('Wallet not connected');
+    }
 
-const result = await uploadToShelby(
-  fileBuffer,
-  fd,
-  expiry,
-  walletAccount // 🔥 WAJIB INI
-);
+    const fileBuffer = await sel[0].arrayBuffer();
+
+    log('UPLOAD · Starting...', 'in');
+    toast('📤 Uploading...', 'ok');
+
+    // 🔥 SIMPLE DIRECT CALL
+    const result = await uploadToShelby(
+      fileBuffer,
+      fd,
+      expiry,
+      walletAccount,
+      walletAddress
+    );
+
     if (result.success) {
       if (pf) pf.style.width = '100%';
       if (pl) pl.textContent = 'Upload complete ✔';
@@ -402,18 +512,18 @@ const result = await uploadToShelby(
       stats();
 
       log('UPLOAD · Done! TXN: ' + result.txn?.slice(0, 20) + '...', 'ok');
-      toast('✅ ' + fn + ' uploaded!', 'ok');
+      toast('✅ Uploaded!', 'ok');
 
       sel = [];
 
     } else {
-      throw new Error(result.error || 'Upload failed');
+      throw new Error(result.error);
     }
 
   } catch (err) {
-    console.error('UPLOAD ERROR:', err);
+    console.error('Error:', err?.message);
     log('UPLOAD · FAILED: ' + err.message, 'er');
-    toast('❌ Upload gagal (cek console)', 'er');
+    toast('❌ ' + err.message, 'er');
   }
 
   if (btn) { btn.disabled = false; btn.innerHTML = '🚀 Upload to Sheltrix'; }
